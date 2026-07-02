@@ -1,1 +1,10 @@
-export type { FileEntry, FileType, ListResponse } from "./types";
+export type {
+  ApiError,
+  ApiErrorCode,
+  FileEntry,
+  FileType,
+  ListResponse,
+  MkdirRequest,
+  OkResponse,
+  RenameRequest,
+} from "./types";
