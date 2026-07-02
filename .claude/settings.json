@@ -16,5 +16,20 @@
       "Bash(brew:*)"
     ],
     "ask": ["Bash(git commit:*)", "Bash(npm install)", "Bash(npm ci)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | { read -r f; case \"$f\" in *package-lock.json) ;; *.ts|*.tsx|*.js|*.jsx|*.json) npx oxfmt \"$f\" 2>/dev/null || true;; esac; }",
+            "timeout": 30,
+            "statusMessage": "oxfmt で整形中..."
+          }
+        ]
+      }
+    ]
   }
 }
