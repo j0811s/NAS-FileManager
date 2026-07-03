@@ -10,10 +10,12 @@ export function createApp(root: string): Hono {
   app.route("/api", createFilesRoutes(root));
 
   app.onError((err, c) => {
-    if (err instanceof AppError) {
+    if (err instanceof AppError && err.code !== "INTERNAL") {
       const body: ApiError = { error: { code: err.code, message: err.message } };
       return c.json(body, statusOf(err.code));
     }
+    // 想定外の fs エラー（fromFsError の INTERNAL 分岐）や AppError 以外の例外はここに来る。
+    // 内部詳細（パス・errno 等）をレスポンスに含めず、サーバ側ログにのみ残す。
     console.error(err);
     const body: ApiError = { error: { code: "INTERNAL", message: "internal server error" } };
     return c.json(body, 500);

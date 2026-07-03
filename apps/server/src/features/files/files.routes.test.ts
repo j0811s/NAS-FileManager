@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiError, ListResponse } from "@nas-fm/shared";
 import { createApp } from "../../app";
 
@@ -43,6 +43,30 @@ describe("GET /api/list", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as ApiError;
     expect(body.error.code).toBe("PATH_TRAVERSAL");
+  });
+
+  it("想定外の fs エラー（EACCES）は内部情報を漏らさず 500 + INTERNAL を返し console.error に記録する", async () => {
+    const restricted = path.join(root, "restricted");
+    await mkdir(restricted);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      // 読み取り権限を剥奪し、readdir が EACCES を投げるようにする
+      await chmod(restricted, 0o000);
+      const app = createApp(root);
+      const res = await app.request("/api/list?path=restricted");
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as ApiError;
+      expect(body.error.code).toBe("INTERNAL");
+      expect(body.error.message).toBe("internal server error");
+      expect(body.error.message).not.toContain(root);
+      expect(body.error.message).not.toContain("EACCES");
+      expect(body.error.message).not.toContain("unexpected error:");
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    } finally {
+      // afterEach の rm({ recursive: true }) が読めるように権限を戻す
+      await chmod(restricted, 0o755);
+      consoleErrorSpy.mockRestore();
+    }
   });
 });
 
