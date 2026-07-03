@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppError } from "../../lib/errors";
-import { listDir, removePath } from "./files.service";
+import { listDir, makeDir, removePath, renamePath } from "./files.service";
 
 let root: string;
 
@@ -82,5 +82,47 @@ describe("removePath", () => {
 
   it("root 自身の削除は INVALID_REQUEST", async () => {
     await expectAppError(removePath(root, ""), "INVALID_REQUEST");
+  });
+});
+
+describe("makeDir", () => {
+  it("ディレクトリを作成できる", async () => {
+    await makeDir(root, "newdir");
+    const entries = await listDir(root, "");
+    expect(entries).toEqual([{ name: "newdir", size: 0, mtime: expect.any(Number), type: "dir" }]);
+  });
+
+  it("同名が存在すると CONFLICT", async () => {
+    await makeDir(root, "newdir");
+    await expectAppError(makeDir(root, "newdir"), "CONFLICT");
+  });
+
+  it("親ディレクトリが無いと NOT_FOUND", async () => {
+    await expectAppError(makeDir(root, "no/child"), "NOT_FOUND");
+  });
+});
+
+describe("renamePath", () => {
+  it("ファイルをリネームできる", async () => {
+    await writeFile(path.join(root, "a.txt"), "x");
+    await renamePath(root, "a.txt", "b.txt");
+    expect(await readdir(root)).toEqual(["b.txt"]);
+  });
+
+  it("サブディレクトリへ移動できる", async () => {
+    await writeFile(path.join(root, "a.txt"), "x");
+    await mkdir(path.join(root, "sub"));
+    await renamePath(root, "a.txt", "sub/a.txt");
+    expect(await readdir(path.join(root, "sub"))).toEqual(["a.txt"]);
+  });
+
+  it("移動元が無いと NOT_FOUND", async () => {
+    await expectAppError(renamePath(root, "missing", "b.txt"), "NOT_FOUND");
+  });
+
+  it("移動先が存在すると CONFLICT（上書きしない）", async () => {
+    await writeFile(path.join(root, "a.txt"), "x");
+    await writeFile(path.join(root, "b.txt"), "y");
+    await expectAppError(renamePath(root, "a.txt", "b.txt"), "CONFLICT");
   });
 });

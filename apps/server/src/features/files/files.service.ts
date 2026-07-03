@@ -38,3 +38,36 @@ export async function removePath(root: string, relPath: string): Promise<void> {
   }
   await fs.rm(abs, { recursive: true });
 }
+
+export async function makeDir(root: string, relPath: string): Promise<void> {
+  const abs = safeResolve(root, relPath);
+  if (abs === root) {
+    throw new AppError("CONFLICT", "root directory already exists");
+  }
+  try {
+    await fs.mkdir(abs);
+  } catch (err) {
+    throw fromFsError(err, relPath);
+  }
+}
+
+export async function renamePath(root: string, from: string, to: string): Promise<void> {
+  const absFrom = safeResolve(root, from);
+  const absTo = safeResolve(root, to);
+  if (absFrom === root || absTo === root) {
+    throw new AppError("INVALID_REQUEST", "cannot rename the root directory");
+  }
+  const src = await fs.lstat(absFrom).catch(() => null);
+  if (!src) {
+    throw new AppError("NOT_FOUND", `not found: ${from}`);
+  }
+  const dst = await fs.lstat(absTo).catch(() => null);
+  if (dst) {
+    throw new AppError("CONFLICT", `already exists: ${to}`);
+  }
+  try {
+    await fs.rename(absFrom, absTo);
+  } catch (err) {
+    throw fromFsError(err, to);
+  }
+}
