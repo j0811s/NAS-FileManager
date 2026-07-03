@@ -1,5 +1,8 @@
+import { createWriteStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { FileEntry } from "@nas-fm/shared";
 import { AppError, fromFsError } from "../../lib/errors";
 import { safeResolve } from "../../lib/safe-resolve";
@@ -70,4 +73,50 @@ export async function renamePath(root: string, from: string, to: string): Promis
   } catch (err) {
     throw fromFsError(err, to);
   }
+}
+
+export async function uploadFile(
+  root: string,
+  relPath: string,
+  body: Readable,
+  overwrite: boolean,
+): Promise<void> {
+  const abs = safeResolve(root, relPath);
+  if (abs === root) {
+    throw new AppError("INVALID_REQUEST", "upload path must be a file path");
+  }
+  const existing = await fs.stat(abs).catch(() => null);
+  if (existing?.isDirectory()) {
+    throw new AppError("IS_A_DIRECTORY", `is a directory: ${relPath}`);
+  }
+  if (existing && !overwrite) {
+    throw new AppError("CONFLICT", `already exists: ${relPath}`);
+  }
+  const parent = path.dirname(abs);
+  const parentSt = await fs.stat(parent).catch(() => null);
+  if (!parentSt?.isDirectory()) {
+    throw new AppError("NOT_FOUND", `parent directory not found: ${relPath}`);
+  }
+  try {
+    // 大容量ファイルをメモリに載せないため、必ず pipeline + createWriteStream で書く
+    await pipeline(body, createWriteStream(abs));
+  } catch (err) {
+    await fs.rm(abs, { force: true }).catch(() => undefined);
+    throw fromFsError(err, relPath);
+  }
+}
+
+export async function statForDownload(
+  root: string,
+  relPath: string,
+): Promise<{ abs: string; size: number; name: string }> {
+  const abs = safeResolve(root, relPath);
+  const st = await fs.stat(abs).catch(() => null);
+  if (!st) {
+    throw new AppError("NOT_FOUND", `not found: ${relPath}`);
+  }
+  if (st.isDirectory()) {
+    throw new AppError("IS_A_DIRECTORY", `is a directory: ${relPath}`);
+  }
+  return { abs, size: st.size, name: path.basename(abs) };
 }

@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppError } from "../../lib/errors";
-import { listDir, makeDir, removePath, renamePath } from "./files.service";
+import { listDir, makeDir, removePath, renamePath, statForDownload, uploadFile } from "./files.service";
 
 let root: string;
 
@@ -124,5 +125,63 @@ describe("renamePath", () => {
     await writeFile(path.join(root, "a.txt"), "x");
     await writeFile(path.join(root, "b.txt"), "y");
     await expectAppError(renamePath(root, "a.txt", "b.txt"), "CONFLICT");
+  });
+});
+
+describe("uploadFile", () => {
+  it("ボディストリームを新規ファイルに書き込む", async () => {
+    await uploadFile(root, "up.txt", Readable.from("hello"), false);
+    expect(await readFile(path.join(root, "up.txt"), "utf8")).toBe("hello");
+  });
+
+  it("既存ファイルがあり overwrite=false なら CONFLICT（中身は保持）", async () => {
+    await writeFile(path.join(root, "up.txt"), "old");
+    await expectAppError(uploadFile(root, "up.txt", Readable.from("new"), false), "CONFLICT");
+    expect(await readFile(path.join(root, "up.txt"), "utf8")).toBe("old");
+  });
+
+  it("overwrite=true なら上書きする", async () => {
+    await writeFile(path.join(root, "up.txt"), "old");
+    await uploadFile(root, "up.txt", Readable.from("new"), true);
+    expect(await readFile(path.join(root, "up.txt"), "utf8")).toBe("new");
+  });
+
+  it("パスがディレクトリなら IS_A_DIRECTORY", async () => {
+    await mkdir(path.join(root, "sub"));
+    await expectAppError(uploadFile(root, "sub", Readable.from("x"), true), "IS_A_DIRECTORY");
+  });
+
+  it("親ディレクトリが無いと NOT_FOUND（自動作成しない）", async () => {
+    await expectAppError(uploadFile(root, "no/up.txt", Readable.from("x"), false), "NOT_FOUND");
+  });
+
+  it("ストリーム途中失敗時は書きかけファイルを残さない", async () => {
+    const failing = new Readable({
+      read() {
+        this.push("partial");
+        this.destroy(new Error("stream broken"));
+      },
+    });
+    await expectAppError(uploadFile(root, "up.txt", failing, false), "INTERNAL");
+    expect(await readdir(root)).toEqual([]);
+  });
+});
+
+describe("statForDownload", () => {
+  it("絶対パス・サイズ・ファイル名を返す", async () => {
+    await writeFile(path.join(root, "dl.txt"), "hello");
+    const info = await statForDownload(root, "dl.txt");
+    expect(info.abs).toBe(path.join(root, "dl.txt"));
+    expect(info.size).toBe(5);
+    expect(info.name).toBe("dl.txt");
+  });
+
+  it("存在しないと NOT_FOUND", async () => {
+    await expectAppError(statForDownload(root, "missing"), "NOT_FOUND");
+  });
+
+  it("ディレクトリは IS_A_DIRECTORY", async () => {
+    await mkdir(path.join(root, "sub"));
+    await expectAppError(statForDownload(root, "sub"), "IS_A_DIRECTORY");
   });
 });
