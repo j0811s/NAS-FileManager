@@ -13,14 +13,14 @@
 
 ## Phase 1: ファイル操作 API（サーバ）— spec §4
 
-- [ ] `lib/safeResolve`（パストラバーサル検証）— **最初に・テスト必須**（spec §4.3A）。全エンドポイントが依存
-- [ ] `NAS_ROOT` 設定機構 — 環境変数で注入。未設定時は開発用 `.dev-share/`（gitignore・起動時自動作成）にフォールバック。Pi 本番は systemd の `Environment=` で `/srv/nas/share`
-- [ ] server に Vitest 導入（テストは `fs.mkdtemp` の一時ディレクトリで実 fs を使う）
-- [ ] `files` feature: `GET /api/list`（名前・サイズ・更新日時・種別）
-- [ ] `POST /api/upload` — **ストリーミング必須**（`pipeline` + `createWriteStream`、spec §4.3B）
-- [ ] `GET /api/download` — ストリーミング（`createReadStream` + `Content-Disposition`、spec §4.3D）
-- [ ] `POST /api/mkdir` / `POST /api/rename` / `DELETE /api/delete`
-- [ ] `packages/shared` に各エンドポイントのリクエスト/レスポンス型を追加
+- [x] `lib/safeResolve`（パストラバーサル検証）— **最初に・テスト必須**（spec §4.3A）。全エンドポイントが依存
+- [x] `NAS_ROOT` 設定機構 — 環境変数で注入。未設定時は開発用 `.dev-share/`（gitignore・起動時自動作成）にフォールバック。Pi 本番は systemd の `Environment=` で `/srv/nas/share`
+- [x] server に Vitest 導入（テストは `fs.mkdtemp` の一時ディレクトリで実 fs を使う）
+- [x] `files` feature: `GET /api/list`（名前・サイズ・更新日時・種別）
+- [x] `POST /api/upload` — **ストリーミング必須**（`pipeline` + `createWriteStream`、spec §4.3B）
+- [x] `GET /api/download` — ストリーミング（`createReadStream` + `Content-Disposition`、spec §4.3D）
+- [x] `POST /api/mkdir` / `POST /api/rename` / `DELETE /api/delete`
+- [x] `packages/shared` に各エンドポイントのリクエスト/レスポンス型を追加
 
 **開発方針（決定済み）:** モックは使わない。開発・テストとも実 fs で、差し替えるのはルートディレクトリ（`NAS_ROOT`）だけ。フロント開発も Vite の `server.proxy`（`/api` → `localhost:8080`）で実 API に接続する。Pi 固有の権限まわり（nas グループ / umask / setgid）だけは Phase 4 で実機検証する。macOS は大文字小文字を区別しないため、リネームの一部挙動が Pi (ext4) と異なる点に注意。
 
