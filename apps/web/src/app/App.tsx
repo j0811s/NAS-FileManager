@@ -1,17 +1,14 @@
-import type { FileEntry } from "@nas-fm/shared";
-
-const sample: FileEntry = {
-  name: "example.txt",
-  size: 0,
-  mtime: 0,
-  type: "file",
-};
+import { Providers } from "./providers";
 
 export function App() {
   return (
-    <main>
-      <h1>NAS-FileManager</h1>
-      <p>{sample.name}</p>
-    </main>
+    <Providers>
+      <div className="min-h-screen bg-background text-foreground">
+        <header className="border-b px-6 py-4">
+          <h1 className="text-xl font-semibold">NAS-FileManager</h1>
+        </header>
+        <main className="p-6" />
+      </div>
+    </Providers>
   );
 }

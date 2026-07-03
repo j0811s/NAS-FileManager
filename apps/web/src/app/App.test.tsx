@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { App } from "@/app/App";
+import { describe, expect, it } from "vitest";
+import { App } from "./App";
 
-test("renders app heading", () => {
-  render(<App />);
-  expect(screen.getByRole("heading", { name: "NAS-FileManager" })).toBeDefined();
+describe("App", () => {
+  it("ヘッダにアプリ名を表示する", () => {
+    render(<App />);
+    expect(screen.getByRole("heading", { name: "NAS-FileManager" })).toBeInTheDocument();
+  });
 });
