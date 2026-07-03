@@ -29,3 +29,6 @@ dist-ssr
 *.sw?
 
 .husky/_
+
+# NAS dev root
+.dev-share/
