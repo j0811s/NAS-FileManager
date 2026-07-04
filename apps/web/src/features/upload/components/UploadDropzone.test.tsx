@@ -21,4 +21,12 @@ describe("UploadDropzone", () => {
     await userEvent.upload(input, new File(["x"], "a.txt"));
     expect(upload).toHaveBeenCalledWith("docs", expect.any(File), expect.any(Object));
   });
+
+  it("アップロード後に input の値をリセットし同じファイルを再選択できるようにする", async () => {
+    vi.spyOn(api, "upload").mockResolvedValue();
+    renderWithClient(<UploadDropzone path="docs" />);
+    const input = screen.getByTestId("upload-input") as HTMLInputElement;
+    await userEvent.upload(input, new File(["x"], "a.txt"));
+    expect(input.value).toBe("");
+  });
 });

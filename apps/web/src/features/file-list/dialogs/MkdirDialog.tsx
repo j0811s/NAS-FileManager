@@ -20,6 +20,10 @@ export function MkdirDialog({
   onSubmit: (name: string) => void;
 }) {
   const [name, setName] = useState("");
+  function handleOpenChange(v: boolean) {
+    if (!v) setName("");
+    onOpenChange(v);
+  }
   function submit() {
     const trimmed = name.trim();
     if (!trimmed) return;
@@ -28,7 +32,7 @@ export function MkdirDialog({
     onOpenChange(false);
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新しいフォルダ</DialogTitle>
@@ -38,7 +42,7 @@ export function MkdirDialog({
           <Input id="mkdir-name" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)}>
             キャンセル
           </Button>
           <Button onClick={submit}>作成</Button>

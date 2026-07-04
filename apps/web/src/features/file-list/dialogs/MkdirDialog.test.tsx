@@ -18,4 +18,19 @@ describe("MkdirDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "作成" }));
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("キャンセルで閉じて再度開くと入力がリセットされている", async () => {
+    const onSubmit = vi.fn();
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <MkdirDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} />,
+    );
+    await userEvent.type(screen.getByLabelText("フォルダ名"), "photos");
+    await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    rerender(<MkdirDialog open={false} onOpenChange={onOpenChange} onSubmit={onSubmit} />);
+    rerender(<MkdirDialog open onOpenChange={onOpenChange} onSubmit={onSubmit} />);
+    expect(screen.getByLabelText("フォルダ名")).toHaveValue("");
+  });
 });

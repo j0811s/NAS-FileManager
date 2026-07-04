@@ -43,7 +43,12 @@ export function UploadDropzone({ path }: { path: string }) {
         multiple
         className="hidden"
         data-testid="upload-input"
-        onChange={(e) => void handleFiles(e.target.files)}
+        onChange={(e) => {
+          const el = e.target;
+          void handleFiles(el.files).then(() => {
+            el.value = "";
+          });
+        }}
       />
       {isUploading && progress !== null && <Progress value={progress} className="w-full" />}
     </Card>
