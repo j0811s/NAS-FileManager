@@ -1,12 +1,29 @@
 import { Hono } from "hono";
 import type { ApiError } from "@nas-fm/shared";
-import { createFilesRoutes } from "./features/files/files.routes";
+import type { AuthConfig } from "./lib/auth-config";
 import { AppError, statusOf } from "./lib/errors";
+import { createAuthRoutes } from "./features/auth/auth.routes";
+import { requireAuth } from "./features/auth/auth.middleware";
+import { createFilesRoutes } from "./features/files/files.routes";
 
-export function createApp(root: string): Hono {
+export function createApp(root: string, authConfig: AuthConfig): Hono {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ status: "ok" }));
+
+  // 認証ルート（login は公開）。files のガードより先に登録する。
+  app.route("/api/auth", createAuthRoutes(authConfig));
+
+  // /api/auth/* を除いた /api/* を JWT で保護する。
+  // （files を /api にマウントすると /api/auth と接頭辞が重なるため、ここで明示的に除外する）
+  const guard = requireAuth(authConfig);
+  app.use("/api/*", async (c, next) => {
+    if (c.req.path.startsWith("/api/auth/")) {
+      return next();
+    }
+    return guard(c, next);
+  });
+
   app.route("/api", createFilesRoutes(root));
 
   app.onError((err, c) => {
