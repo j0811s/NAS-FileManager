@@ -59,6 +59,10 @@ export const api = {
     return `/api/download?path=${encodeURIComponent(path)}`;
   },
 
+  previewUrl(path: string): string {
+    return `/api/preview?path=${encodeURIComponent(path)}`;
+  },
+
   async login(password: string): Promise<void> {
     await request("/api/auth/login", {
       method: "POST",

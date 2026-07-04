@@ -47,6 +47,12 @@ describe("api.downloadUrl", () => {
   });
 });
 
+describe("api.previewUrl", () => {
+  it("パスをエンコードした preview URL を返す", () => {
+    expect(api.previewUrl("docs/レポート.txt")).toBe(`/api/preview?path=${encodeURIComponent("docs/レポート.txt")}`);
+  });
+});
+
 describe("api.login / logout / me", () => {
   it("login は password を JSON で POST する", async () => {
     mockFetch(200, { ok: true });
