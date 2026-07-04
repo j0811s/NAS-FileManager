@@ -7,6 +7,7 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   IS_A_DIRECTORY: "フォルダは直接操作できません",
   NOT_FOUND: "見つかりませんでした",
   CONFLICT: "同名の項目が既に存在します",
+  UNAUTHORIZED: "認証が必要です",
   INTERNAL: "サーバでエラーが発生しました",
 };
 

@@ -10,13 +10,15 @@ export class AppError extends Error {
   }
 }
 
-export function statusOf(code: ApiErrorCode): 400 | 404 | 409 | 500 {
+export function statusOf(code: ApiErrorCode): 400 | 401 | 404 | 409 | 500 {
   switch (code) {
     case "PATH_TRAVERSAL":
     case "INVALID_REQUEST":
     case "NOT_A_DIRECTORY":
     case "IS_A_DIRECTORY":
       return 400;
+    case "UNAUTHORIZED":
+      return 401;
     case "NOT_FOUND":
       return 404;
     case "CONFLICT":

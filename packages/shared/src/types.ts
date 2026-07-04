@@ -20,6 +20,7 @@ export type ApiErrorCode =
   | "IS_A_DIRECTORY"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "UNAUTHORIZED"
   | "INTERNAL";
 
 export interface ApiError {
@@ -37,4 +38,12 @@ export interface MkdirRequest {
 export interface RenameRequest {
   from: string;
   to: string;
+}
+
+export interface LoginRequest {
+  password: string;
+}
+
+export interface AuthStatus {
+  authenticated: boolean;
 }
