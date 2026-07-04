@@ -31,12 +31,12 @@
 
 ## Phase 3: フロントエンド UI — spec §5
 
-- [ ] Tailwind CSS + shadcn/ui 初期化（`npx shadcn@latest init`）+ `lucide-react`
-- [ ] `file-list` feature: 一覧・パンくず・ソート（`Table` / `Breadcrumb` / `Button`）
-- [ ] `upload` feature: ドラッグ&ドロップ + 進捗表示（XHR `upload.onprogress` + `Progress`）
-- [ ] 行アクション: DL / フォルダ作成 / リネーム / 削除（`DropdownMenu` / `Dialog` / `AlertDialog`）
-- [ ] 通知・エラー表示（`Sonner`）
-- [ ] `auth` feature: ログイン画面
+- [x] Tailwind CSS + shadcn/ui 初期化（`npx shadcn@latest init`）+ `lucide-react`
+- [x] `file-list` feature: 一覧・パンくず・ソート（`Table` / `Breadcrumb` / `Button`）
+- [x] `upload` feature: ドラッグ&ドロップ + 進捗表示（XHR `upload.onprogress` + `Progress`）
+- [x] 行アクション: DL / フォルダ作成 / リネーム / 削除（`DropdownMenu` / `Dialog` / `AlertDialog`）
+- [x] 通知・エラー表示（`Sonner`）
+- [ ] `auth` feature: ログイン画面（Phase 2 実装後）
 
 ## Phase 4: 本番配信・デプロイ — spec §3, §7
 
