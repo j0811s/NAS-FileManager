@@ -12,7 +12,9 @@ for (const [label, p] of [
   ["apps/web/dist", webDist],
 ]) {
   if (!existsSync(p)) {
-    console.error(`必要なビルド成果物が見つかりません: ${label}（先に npm run build を実行してください）`);
+    console.error(
+      `必要なビルド成果物が見つかりません: ${label}（先に npm run build を実行してください）`,
+    );
     process.exit(1);
   }
 }
