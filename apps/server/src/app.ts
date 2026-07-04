@@ -1,3 +1,4 @@
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import type { ApiError } from "@nas-fm/shared";
 import type { AuthConfig } from "./lib/auth-config";
@@ -6,7 +7,7 @@ import { createAuthRoutes } from "./features/auth/auth.routes";
 import { requireAuth } from "./features/auth/auth.middleware";
 import { createFilesRoutes } from "./features/files/files.routes";
 
-export function createApp(root: string, authConfig: AuthConfig): Hono {
+export function createApp(root: string, authConfig: AuthConfig, staticDir?: string): Hono {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ status: "ok" }));
@@ -25,6 +26,12 @@ export function createApp(root: string, authConfig: AuthConfig): Hono {
   });
 
   app.route("/api", createFilesRoutes(root));
+
+  // web のビルド成果物を配信する（本番のみ。staticDir が無ければ静的配信自体を行わない）。
+  // /health・/api/* はここより前に登録済みのハンドラで終端するため、この後段には落ちてこない。
+  if (staticDir) {
+    app.use("/*", serveStatic({ root: staticDir }));
+  }
 
   app.onError((err, c) => {
     if (err instanceof AppError && err.code !== "INTERNAL") {
