@@ -26,8 +26,8 @@
 
 ## Phase 2: 認証 — spec §4.1
 
-- [ ] 単一管理ユーザーの JWT またはセッション（`hono/jwt`）
-- [ ] 認証ミドルウェア（LAN 内限定でも最低限付ける方針）
+- [x] 単一管理ユーザーの JWT またはセッション（`hono/jwt`）
+- [x] 認証ミドルウェア（LAN 内限定でも最低限付ける方針）
 
 ## Phase 3: フロントエンド UI — spec §5
 
@@ -36,7 +36,7 @@
 - [x] `upload` feature: ドラッグ&ドロップ + 進捗表示（XHR `upload.onprogress` + `Progress`）
 - [x] 行アクション: DL / フォルダ作成 / リネーム / 削除（`DropdownMenu` / `Dialog` / `AlertDialog`）
 - [x] 通知・エラー表示（`Sonner`）
-- [ ] `auth` feature: ログイン画面（Phase 2 実装後）
+- [x] `auth` feature: ログイン画面
 
 ## Phase 4: 本番配信・デプロイ — spec §3, §7
 
