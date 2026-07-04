@@ -40,9 +40,9 @@
 
 ## Phase 4: 本番配信・デプロイ — spec §3, §7
 
-- [ ] web の `dist` を server から静的配信（本番は 1 プロセス）
-- [ ] server の単一 `server.js` バンドル（`tsup` / `esbuild`）
-- [ ] systemd ユニット（`Group=nas` / `UMask=0002` / `Environment=NAS_ROOT=/srv/nas/share`）
+- [x] web の `dist` を server から静的配信（本番は 1 プロセス）
+- [x] server の単一 `server.js` バンドル（`tsup` / `esbuild`）
+- [x] systemd ユニット（`Group=nas` / `UMask=0002` / `Environment=NAS_ROOT=/srv/nas/share`）
 - [ ] Pi 実機で権限統一を検証（setgid 2775、SMB との相互編集・削除）
 
 ## Phase 5: プレビュー機能（拡張） — spec §10
