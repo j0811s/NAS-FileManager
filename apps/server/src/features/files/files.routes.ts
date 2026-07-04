@@ -3,7 +3,10 @@ import { Readable } from "node:stream";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import { Hono } from "hono";
 import type { ListResponse, OkResponse } from "@nas-fm/shared";
+import { classifyPreview } from "@nas-fm/shared";
 import { AppError } from "../../lib/errors";
+import { previewContentType } from "../../lib/preview-mime";
+import { parseRange } from "../../lib/range";
 import {
   listDir,
   makeDir,
@@ -60,6 +63,41 @@ export function createFilesRoutes(root: string): Hono {
     c.header("Content-Type", "application/octet-stream");
     c.header("Content-Length", String(size));
     c.header("Content-Disposition", contentDisposition(name));
+    return c.body(Readable.toWeb(createReadStream(abs)) as unknown as ReadableStream);
+  });
+
+  app.get("/preview", async (c) => {
+    const rel = requirePath(c.req.query("path"));
+    const { abs, size, name } = await statForDownload(root, rel);
+    const kind = classifyPreview(name);
+    if (!kind) {
+      throw new AppError("INVALID_REQUEST", "unsupported preview type");
+    }
+    const contentType = previewContentType(kind, name);
+    const range = parseRange(c.req.header("range"), size);
+
+    c.header("Content-Type", contentType);
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Content-Disposition", "inline");
+    c.header("Accept-Ranges", "bytes");
+
+    if (range.kind === "invalid") {
+      c.header("Content-Range", `bytes */${size}`);
+      return c.body(null, 416);
+    }
+
+    if (range.kind === "partial") {
+      c.header("Content-Range", `bytes ${range.start}-${range.end}/${size}`);
+      c.header("Content-Length", String(range.end - range.start + 1));
+      return c.body(
+        Readable.toWeb(
+          createReadStream(abs, { start: range.start, end: range.end }),
+        ) as unknown as ReadableStream,
+        206,
+      );
+    }
+
+    c.header("Content-Length", String(size));
     return c.body(Readable.toWeb(createReadStream(abs)) as unknown as ReadableStream);
   });
 

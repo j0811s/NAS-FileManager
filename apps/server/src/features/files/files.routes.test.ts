@@ -232,6 +232,68 @@ describe("DELETE /api/delete", () => {
   });
 });
 
+describe("GET /api/preview", () => {
+  it("画像は実際の MIME で 200 を返す", async () => {
+    await writeFile(path.join(root, "a.jpg"), "fake-jpeg-bytes");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.jpg", withAuth());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("content-disposition")).toBe("inline");
+    expect(res.headers.get("accept-ranges")).toBe("bytes");
+  });
+
+  it("テキストは常に text/plain を返す（本来の MIME を使わない）", async () => {
+    await writeFile(path.join(root, "a.html"), "<html>hi</html>");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.html", withAuth());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(await res.text()).toBe("<html>hi</html>");
+  });
+
+  it("Range 指定で 206 と部分バイトを返す", async () => {
+    await writeFile(path.join(root, "a.txt"), "0123456789");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.txt", withAuth({ headers: { Range: "bytes=2-5" } }));
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(res.headers.get("content-length")).toBe("4");
+    expect(await res.text()).toBe("2345");
+  });
+
+  it("範囲外の Range は 416 を返す", async () => {
+    await writeFile(path.join(root, "a.txt"), "0123456789");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.txt", withAuth({ headers: { Range: "bytes=100-200" } }));
+    expect(res.status).toBe(416);
+    expect(res.headers.get("content-range")).toBe("bytes */10");
+  });
+
+  it("非対応の拡張子は 400", async () => {
+    await writeFile(path.join(root, "a.zip"), "zip-bytes");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.zip", withAuth());
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("存在しないファイルは 404", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=missing.txt", withAuth());
+    expect(res.status).toBe(404);
+  });
+
+  it("Cookie 無しは 401", async () => {
+    await writeFile(path.join(root, "a.txt"), "x");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.txt");
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("GET /health", () => {
   it("200 を返す", async () => {
     const app = createApp(root, authConfig);
