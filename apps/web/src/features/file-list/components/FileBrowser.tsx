@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
 import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UploadDropzone } from "@/features/upload";
 import { useFileList } from "../hooks/useFileList";
 import { useFileMutations } from "../hooks/useFileMutations";
 import { type SortDir, type SortKey, sortEntries } from "../sort";
@@ -47,6 +48,8 @@ export function FileBrowser() {
           新しいフォルダ
         </Button>
       </div>
+
+      <UploadDropzone path={path} />
 
       {isLoading && <p className="text-muted-foreground">読み込み中…</p>}
       {isError && (
