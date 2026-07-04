@@ -9,6 +9,7 @@ describe("errorMessage", () => {
     "IS_A_DIRECTORY",
     "NOT_FOUND",
     "CONFLICT",
+    "UNAUTHORIZED",
     "INTERNAL",
   ])("%s に日本語メッセージがある", (code) => {
     const msg = errorMessage(code);

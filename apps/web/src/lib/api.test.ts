@@ -46,3 +46,27 @@ describe("api.downloadUrl", () => {
     expect(api.downloadUrl("docs/レポート.txt")).toBe(`/api/download?path=${encodeURIComponent("docs/レポート.txt")}`);
   });
 });
+
+describe("api.login / logout / me", () => {
+  it("login は password を JSON で POST する", async () => {
+    mockFetch(200, { ok: true });
+    await api.login("secret");
+    expect(fetch).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("login 失敗は ApiRequestError", async () => {
+    mockFetch(401, { error: { code: "UNAUTHORIZED", message: "invalid" } });
+    await expect(api.login("bad")).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("logout は POST する", async () => {
+    mockFetch(200, { ok: true });
+    await api.logout();
+    expect(fetch).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("me は AuthStatus を返す", async () => {
+    mockFetch(200, { authenticated: true });
+    expect(await api.me()).toEqual({ authenticated: true });
+  });
+});

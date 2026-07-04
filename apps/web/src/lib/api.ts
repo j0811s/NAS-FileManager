@@ -1,4 +1,4 @@
-import type { ListResponse } from "@nas-fm/shared";
+import type { AuthStatus, ListResponse } from "@nas-fm/shared";
 
 export class ApiRequestError extends Error {
   readonly code: string;
@@ -57,6 +57,23 @@ export const api = {
 
   downloadUrl(path: string): string {
     return `/api/download?path=${encodeURIComponent(path)}`;
+  },
+
+  async login(password: string): Promise<void> {
+    await request("/api/auth/login", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ password }),
+    });
+  },
+
+  async logout(): Promise<void> {
+    await request("/api/auth/logout", { method: "POST" });
+  },
+
+  async me(): Promise<AuthStatus> {
+    const res = await request("/api/auth/me");
+    return (await res.json()) as AuthStatus;
   },
 
   upload(
