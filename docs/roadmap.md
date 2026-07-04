@@ -47,10 +47,10 @@
 
 ## Phase 5: プレビュー機能（拡張） — spec §10
 
-- [ ] inline 配信エンドポイント（MIME 判定 `mime-types`・`X-Content-Type-Options: nosniff`・**Range 対応 206**）
-- [ ] プレビュー UI（`Dialog`、画像 / 動画 / テキスト振り分け、非対応時は DL フォールバック必須）
-- [ ] テキストはサイズ制限（先頭 N KB）+ シンタックスハイライト
-- [ ] 割り切り: HEIC は DL のみ、Pi での動画トランスコードはしない
+- [x] inline 配信エンドポイント（MIME 判定 `mime-types`・`X-Content-Type-Options: nosniff`・**Range 対応 206**）
+- [x] プレビュー UI（`Dialog`、画像 / 動画 / テキスト振り分け、非対応時は DL フォールバック必須）
+- [x] テキストはサイズ制限（先頭 N KB）+ シンタックスハイライト
+- [x] 割り切り: HEIC は DL のみ、Pi での動画トランスコードはしない
 
 ---
 
