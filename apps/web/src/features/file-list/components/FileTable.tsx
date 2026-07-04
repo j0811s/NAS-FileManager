@@ -25,6 +25,7 @@ export function FileTable({
   sortDir,
   onSortChange,
   onOpenDir,
+  onPreview,
   path,
   onRename,
   onDelete,
@@ -34,6 +35,7 @@ export function FileTable({
   sortDir: SortDir;
   onSortChange: (key: SortKey) => void;
   onOpenDir: (name: string) => void;
+  onPreview: (entry: FileEntry) => void;
   path: string;
   onRename: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
@@ -76,14 +78,26 @@ export function FileTable({
                     {entry.name}
                   </button>
                 ) : (
-                  <span>{entry.name}</span>
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() => onPreview(entry)}
+                  >
+                    {entry.name}
+                  </button>
                 )}
               </span>
             </TableCell>
             <TableCell>{formatSize(entry)}</TableCell>
             <TableCell>{new Date(entry.mtime).toLocaleString("ja-JP")}</TableCell>
             <TableCell>
-              <RowActions entry={entry} path={path} onRename={onRename} onDelete={onDelete} />
+              <RowActions
+                entry={entry}
+                path={path}
+                onPreview={onPreview}
+                onRename={onRename}
+                onDelete={onDelete}
+              />
             </TableCell>
           </TableRow>
         ))}

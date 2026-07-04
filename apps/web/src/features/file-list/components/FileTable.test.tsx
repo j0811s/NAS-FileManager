@@ -18,6 +18,7 @@ describe("FileTable", () => {
         sortDir="asc"
         onSortChange={() => {}}
         onOpenDir={() => {}}
+        onPreview={() => {}}
         path=""
         onRename={() => {}}
         onDelete={() => {}}
@@ -36,6 +37,7 @@ describe("FileTable", () => {
         sortDir="asc"
         onSortChange={() => {}}
         onOpenDir={onOpenDir}
+        onPreview={() => {}}
         path=""
         onRename={() => {}}
         onDelete={() => {}}
@@ -43,6 +45,25 @@ describe("FileTable", () => {
     );
     await userEvent.click(screen.getByText("sub"));
     expect(onOpenDir).toHaveBeenCalledWith("sub");
+  });
+
+  it("ファイル名クリックで onPreview を呼ぶ", async () => {
+    const onPreview = vi.fn();
+    render(
+      <FileTable
+        entries={entries}
+        sortKey="name"
+        sortDir="asc"
+        onSortChange={() => {}}
+        onOpenDir={() => {}}
+        onPreview={onPreview}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    await userEvent.click(screen.getByText("a.txt"));
+    expect(onPreview).toHaveBeenCalledWith(entries[1]);
   });
 
   it("名前ヘッダクリックで onSortChange('name')", async () => {
@@ -54,6 +75,7 @@ describe("FileTable", () => {
         sortDir="asc"
         onSortChange={onSortChange}
         onOpenDir={() => {}}
+        onPreview={() => {}}
         path=""
         onRename={() => {}}
         onDelete={() => {}}

@@ -1,5 +1,5 @@
 import type { FileEntry } from "@nas-fm/shared";
-import { Download, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Download, Eye, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,11 +12,13 @@ import { api } from "@/lib/api";
 export function RowActions({
   entry,
   path,
+  onPreview,
   onRename,
   onDelete,
 }: {
   entry: FileEntry;
   path: string;
+  onPreview: (entry: FileEntry) => void;
   onRename: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
 }) {
@@ -29,6 +31,12 @@ export function RowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {entry.type === "file" && (
+          <DropdownMenuItem onClick={() => onPreview(entry)}>
+            <Eye size={16} className="mr-2" />
+            プレビュー
+          </DropdownMenuItem>
+        )}
         {entry.type === "file" && (
           <DropdownMenuItem asChild>
             <a href={api.downloadUrl(rel)} download>

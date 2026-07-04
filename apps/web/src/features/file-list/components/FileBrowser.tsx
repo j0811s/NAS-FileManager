@@ -9,6 +9,7 @@ import { type SortDir, type SortKey, sortEntries } from "../sort";
 import { MkdirDialog } from "../dialogs/MkdirDialog";
 import { RenameDialog } from "../dialogs/RenameDialog";
 import { DeleteDialog } from "../dialogs/DeleteDialog";
+import { PreviewDialog } from "../dialogs/PreviewDialog";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileTable } from "./FileTable";
 
@@ -19,6 +20,7 @@ export function FileBrowser() {
   const [mkdirOpen, setMkdirOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<FileEntry | null>(null);
   const { data, isLoading, isError, refetch } = useFileList(path);
   const { mkdir, rename, remove } = useFileMutations(path);
 
@@ -67,6 +69,7 @@ export function FileBrowser() {
           sortDir={sortDir}
           onSortChange={toggleSort}
           onOpenDir={openDir}
+          onPreview={setPreviewTarget}
           path={path}
           onRename={setRenameTarget}
           onDelete={setDeleteTarget}
@@ -95,6 +98,12 @@ export function FileBrowser() {
           if (deleteTarget) remove.mutate(rel(deleteTarget.name));
           setDeleteTarget(null);
         }}
+      />
+      <PreviewDialog
+        open={previewTarget !== null}
+        onOpenChange={(v) => !v && setPreviewTarget(null)}
+        name={previewTarget?.name ?? ""}
+        path={previewTarget ? rel(previewTarget.name) : ""}
       />
     </div>
   );
