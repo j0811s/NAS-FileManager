@@ -1,3 +1,4 @@
+import { FileBrowser } from "@/features/file-list";
 import { Providers } from "./providers";
 
 export function App() {
@@ -7,7 +8,9 @@ export function App() {
         <header className="border-b px-6 py-4">
           <h1 className="text-xl font-semibold">NAS-FileManager</h1>
         </header>
-        <main className="p-6" />
+        <main className="p-6">
+          <FileBrowser />
+        </main>
       </div>
     </Providers>
   );
