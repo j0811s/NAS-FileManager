@@ -261,6 +261,7 @@ describe("GET /api/preview", () => {
     expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
     expect(res.headers.get("content-length")).toBe("4");
     expect(await res.text()).toBe("2345");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   it("範囲外の Range は 416 を返す", async () => {
@@ -269,6 +270,7 @@ describe("GET /api/preview", () => {
     const res = await app.request("/api/preview?path=a.txt", withAuth({ headers: { Range: "bytes=100-200" } }));
     expect(res.status).toBe(416);
     expect(res.headers.get("content-range")).toBe("bytes */10");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
   it("非対応の拡張子は 400", async () => {
@@ -284,6 +286,14 @@ describe("GET /api/preview", () => {
     const app = createApp(root, authConfig);
     const res = await app.request("/api/preview?path=missing.txt", withAuth());
     expect(res.status).toBe(404);
+  });
+
+  it("空ファイルは Range 指定でも 200 を返す", async () => {
+    await writeFile(path.join(root, "empty.txt"), "");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=empty.txt", withAuth({ headers: { Range: "bytes=0-262143" } }));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("");
   });
 
   it("Cookie 無しは 401", async () => {

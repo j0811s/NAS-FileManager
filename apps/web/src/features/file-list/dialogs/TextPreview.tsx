@@ -4,6 +4,13 @@ import "highlight.js/styles/github.css";
 
 const TEXT_PREVIEW_LIMIT = 262144; // 256KiB。先頭のみ取得しブラウザに全読み込みさせないための上限
 
+function isTruncated(res: Response): boolean {
+  if (res.status !== 206) return false;
+  const contentRange = res.headers.get("content-range");
+  const total = contentRange ? Number(/\/(\d+)$/.exec(contentRange)?.[1]) : NaN;
+  return Number.isFinite(total) && total > TEXT_PREVIEW_LIMIT;
+}
+
 type TextPreviewState =
   | { status: "loading" }
   | { status: "error" }
@@ -24,7 +31,7 @@ export function TextPreview({ url }: { url: string }) {
         }
         const text = await res.text();
         if (cancelled) return;
-        setState({ status: "loaded", text, truncated: res.status === 206 });
+        setState({ status: "loaded", text, truncated: isTruncated(res) });
       })
       .catch(() => {
         if (!cancelled) setState({ status: "error" });

@@ -81,6 +81,11 @@ export function createFilesRoutes(root: string): Hono {
     c.header("Content-Disposition", "inline");
     c.header("Accept-Ranges", "bytes");
 
+    if (size === 0) {
+      c.header("Content-Length", "0");
+      return c.body(null, 200);
+    }
+
     if (range.kind === "invalid") {
       c.header("Content-Range", `bytes */${size}`);
       return c.body(null, 416);
