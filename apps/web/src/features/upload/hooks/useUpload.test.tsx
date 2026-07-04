@@ -3,12 +3,18 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { ApiRequestError, api } from "@/lib/api";
 import { useUpload } from "./useUpload";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient();
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+function wrapperWithClient(client: QueryClient) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -32,6 +38,21 @@ describe("useUpload", () => {
     await act(async () => {
       await result.current.upload(new File(["x"], "a.txt"));
     });
+    expect(error).toHaveBeenCalled();
+  });
+
+  it("401 エラーでは ['me'] を無効化しつつエラートーストも出す", async () => {
+    vi.spyOn(api, "upload").mockRejectedValue(
+      new ApiRequestError("UNAUTHORIZED", "認証が必要です"),
+    );
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const client = new QueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useUpload("docs"), { wrapper: wrapperWithClient(client) });
+    await act(async () => {
+      await result.current.upload(new File(["x"], "a.txt"));
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["me"] });
     expect(error).toHaveBeenCalled();
   });
 });

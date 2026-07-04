@@ -17,6 +17,9 @@ export function useUpload(path: string) {
         qc.invalidateQueries({ queryKey: ["list", path] });
       } catch (err) {
         const code = err instanceof ApiRequestError ? err.code : "INTERNAL";
+        if (err instanceof ApiRequestError && err.code === "UNAUTHORIZED") {
+          qc.invalidateQueries({ queryKey: ["me"] });
+        }
         toast.error(errorMessage(code));
       } finally {
         setProgress(null);
