@@ -18,6 +18,9 @@ describe("FileTable", () => {
         sortDir="asc"
         onSortChange={() => {}}
         onOpenDir={() => {}}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
       />,
     );
     expect(screen.getByText("sub")).toBeInTheDocument();
@@ -33,6 +36,9 @@ describe("FileTable", () => {
         sortDir="asc"
         onSortChange={() => {}}
         onOpenDir={onOpenDir}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
       />,
     );
     await userEvent.click(screen.getByText("sub"));
@@ -48,6 +54,9 @@ describe("FileTable", () => {
         sortDir="asc"
         onSortChange={onSortChange}
         onOpenDir={() => {}}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /名前/ }));

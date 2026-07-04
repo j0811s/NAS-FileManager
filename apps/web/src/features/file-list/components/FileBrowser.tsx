@@ -47,6 +47,9 @@ export function FileBrowser() {
           sortDir={sortDir}
           onSortChange={toggleSort}
           onOpenDir={openDir}
+          path={path}
+          onRename={() => {}}
+          onDelete={() => {}}
         />
       )}
     </div>

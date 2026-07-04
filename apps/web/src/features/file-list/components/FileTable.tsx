@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { SortDir, SortKey } from "../sort";
+import { RowActions } from "./RowActions";
 
 function formatSize(entry: FileEntry): string {
   if (entry.type === "dir") return "—";
@@ -24,12 +25,18 @@ export function FileTable({
   sortDir,
   onSortChange,
   onOpenDir,
+  path,
+  onRename,
+  onDelete,
 }: {
   entries: FileEntry[];
   sortKey: SortKey;
   sortDir: SortDir;
   onSortChange: (key: SortKey) => void;
   onOpenDir: (name: string) => void;
+  path: string;
+  onRename: (entry: FileEntry) => void;
+  onDelete: (entry: FileEntry) => void;
 }) {
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "");
   return (
@@ -51,6 +58,7 @@ export function FileTable({
               更新日時{arrow("mtime")}
             </Button>
           </TableHead>
+          <TableHead className="w-12" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -74,6 +82,9 @@ export function FileTable({
             </TableCell>
             <TableCell>{formatSize(entry)}</TableCell>
             <TableCell>{new Date(entry.mtime).toLocaleString("ja-JP")}</TableCell>
+            <TableCell>
+              <RowActions entry={entry} path={path} onRename={onRename} onDelete={onDelete} />
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
