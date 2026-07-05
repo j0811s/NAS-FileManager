@@ -6,7 +6,7 @@ describe("classifyPreview", () => {
     expect(classifyPreview(name)).toBe("image");
   });
 
-  it.each(["a.mp4", "a.webm", "a.ogv", "a.ogg"])("%s は video", (name) => {
+  it.each(["a.mp4", "a.webm", "a.ogv", "a.ogg", "a.mov"])("%s は video", (name) => {
     expect(classifyPreview(name)).toBe("video");
   });
 
