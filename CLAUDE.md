@@ -33,7 +33,7 @@ npm run test -w @nas-fm/web   # 個別実行の例
 `.npmrc` で `save-exact` / `min-release-age=3` / `engine-strict` を強制。
 
 - 新規依存は**バージョン無指定**の `npm install <pkg> -w <workspace>` で追加する（npm が exact 固定かつ公開3日以上の版を選ぶ）。手書きで `^`/`~` を付けない
-- Node は **24.16.0** 固定（`.nvmrc` / `.node-version` / 全 package.json の `engines`。更新時は4ファイルすべて揃える）
+- Node は **24.18.0 以上**（`.nvmrc` / `.node-version` は開発用に `24.18.0` を指定、全 package.json の `engines` は `">=24.18.0"`。更新時はすべて揃える）
 
 ## ツール
 
