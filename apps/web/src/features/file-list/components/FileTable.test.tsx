@@ -66,6 +66,48 @@ describe("FileTable", () => {
     expect(onPreview).toHaveBeenCalledWith(entries[1]);
   });
 
+  it("行内の名前以外(サイズ列など)のクリックでも onPreview/onOpenDir を呼ぶ", async () => {
+    const onOpenDir = vi.fn();
+    const onPreview = vi.fn();
+    render(
+      <FileTable
+        entries={entries}
+        sortKey="name"
+        sortDir="asc"
+        onSortChange={() => {}}
+        onOpenDir={onOpenDir}
+        onPreview={onPreview}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    await userEvent.click(screen.getByText("12 B"));
+    expect(onPreview).toHaveBeenCalledWith(entries[1]);
+    expect(onOpenDir).not.toHaveBeenCalled();
+  });
+
+  it("操作メニューのクリックでは onPreview/onOpenDir を呼ばない", async () => {
+    const onOpenDir = vi.fn();
+    const onPreview = vi.fn();
+    render(
+      <FileTable
+        entries={entries}
+        sortKey="name"
+        sortDir="asc"
+        onSortChange={() => {}}
+        onOpenDir={onOpenDir}
+        onPreview={onPreview}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "操作メニュー" })[0]);
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(onOpenDir).not.toHaveBeenCalled();
+  });
+
   it("名前ヘッダクリックで onSortChange('name')", async () => {
     const onSortChange = vi.fn();
     render(

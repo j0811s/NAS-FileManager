@@ -65,32 +65,20 @@ export function FileTable({
       </TableHeader>
       <TableBody>
         {entries.map((entry) => (
-          <TableRow key={entry.name}>
+          <TableRow
+            key={entry.name}
+            className="cursor-pointer"
+            onClick={() => (entry.type === "dir" ? onOpenDir(entry.name) : onPreview(entry))}
+          >
             <TableCell>
               <span className="flex items-center gap-2">
                 {entry.type === "dir" ? <Folder size={16} /> : <File size={16} />}
-                {entry.type === "dir" ? (
-                  <button
-                    type="button"
-                    className="hover:underline"
-                    onClick={() => onOpenDir(entry.name)}
-                  >
-                    {entry.name}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="hover:underline"
-                    onClick={() => onPreview(entry)}
-                  >
-                    {entry.name}
-                  </button>
-                )}
+                {entry.name}
               </span>
             </TableCell>
             <TableCell>{formatSize(entry)}</TableCell>
             <TableCell>{new Date(entry.mtime).toLocaleString("ja-JP")}</TableCell>
-            <TableCell>
+            <TableCell onClick={(e) => e.stopPropagation()}>
               <RowActions
                 entry={entry}
                 path={path}
