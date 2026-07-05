@@ -16,7 +16,8 @@
       "Bash(brew:*)",
       "Read(/.env)",
       "Read(/.env.*)",
-      "Read(/deploy/deploy.env)"
+      "Read(/deploy/deploy.env)",
+      "Read(/deploy/nas-fm.env)"
     ],
     "ask": ["Bash(git commit:*)", "Bash(npm install)", "Bash(npm ci)"]
   },
