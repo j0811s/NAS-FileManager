@@ -33,3 +33,6 @@ release
 
 # NAS dev root
 .dev-share/
+
+# デプロイ先の接続情報（実値はコミットしない）
+deploy/deploy.env

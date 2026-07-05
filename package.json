@@ -19,6 +19,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "package": "npm run build && node scripts/package-release.mjs",
+    "deploy": "bash scripts/deploy.sh",
     "prepare": "husky"
   },
   "devDependencies": {
