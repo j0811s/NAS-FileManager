@@ -37,8 +37,8 @@
 - 各カード:
   - 正方形のサムネイル領域 + ファイル名（truncate） + 右上に既存 `RowActions` メニュー（クリックは `stopPropagation`）
   - サムネイル領域は `classifyPreview(name)`（`@nas-fm/shared`）で振り分け:
-    - 画像 → `<img src={api.previewUrl(relPath)} loading="lazy">`（`object-cover`、読み込み失敗時は `onError` でアイコンにフォールバック）
-    - 動画 → `<video src={api.previewUrl(relPath) + "#t=1"} preload="metadata" muted playsInline>`（再生はせず 1 秒目のフレームを静止表示。`object-cover`・`pointer-events-none` でカードのクリックを妨げない。1 秒未満の動画はブラウザが末尾にクランプするのでそのまま許容）
+    - 画像 → `<img src={api.previewUrl(relPath)} loading="lazy">`（`object-cover`、読み込み失敗時は「エラー処理」参照）
+    - 動画 → `<video src={api.previewUrl(relPath) + "#t=1"} preload="metadata" muted playsInline>`（再生はせず 1 秒目のフレームを静止表示。`object-cover`・`pointer-events-none` でカードのクリックを妨げない。1 秒未満の動画はブラウザが末尾にクランプするのでそのまま許容。読み込み失敗時は「エラー処理」参照）
     - フォルダ → `Folder` アイコン、その他 → `File` アイコン
 - クリック動作はテーブル行と同一: フォルダ = `onOpenDir`、ファイル = `onPreview`
 - props はテーブルと同系統（`entries` / `path` / `onOpenDir` / `onPreview` / `onRename` / `onDelete` / `onMove`）。ソート操作はグリッド内には持たない（ツールバー側）
@@ -50,7 +50,10 @@
 
 ## エラー処理
 
-- サムネイル `<img>` / `<video>` の読み込み失敗（削除直後・権限エラー・ブラウザ非対応コーデック等）: `onError` でファイルアイコン表示に差し替え。トーストは出さない（一覧表示の副次要素のため）。特に `.mov` 等はブラウザでデコードできない場合があり、その際はアイコン表示になる
+- サムネイル読み込み失敗時は**種別に応じたアイコン**にフォールバックする（何のファイルかは判別できたままにする）。トーストは出さない（一覧表示の副次要素のため）
+  - 画像の `onError` → `Image` アイコン
+  - 動画の `onError` → `Film` アイコン（HEVC な `.mov` などブラウザ非対応コーデック・削除直後・権限エラー）
+  - 動画の `loadedmetadata` で `videoWidth === 0` → `Film` アイコン（音声のみの `.ogg` など映像トラックが無いケース。エラーは発生せず真っ黒なカードになるのを防ぐ）
 
 ## テスト（Vitest）
 
@@ -60,6 +63,8 @@
   - 画像ファイルは `previewUrl` を src に持つ `img[loading="lazy"]` が描画される
   - 動画ファイルは `previewUrl + "#t=1"` を src に持つ `video[preload="metadata"]` が描画される
   - その他ファイル・フォルダはアイコン表示（`img` / `video` が無い）
+  - 画像の `onError` でアイコン表示に切り替わる
+  - 動画の `onError` / `videoWidth === 0` の `loadedmetadata` でアイコン表示に切り替わる
 - `FileBrowser.test.tsx`（追記）
   - 初期表示がグリッドであること（localStorage 未保存時）
   - 切替ボタンでテーブル ⇔ グリッドが切り替わり、選択が localStorage に保存されること
