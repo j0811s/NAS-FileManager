@@ -31,7 +31,7 @@ npm run fmt
 npm run deploy
 ```
 
-`npm run package`(`release/server.js` + `release/public/` を生成)を実行してから、`deploy/deploy.env` の設定に従って `rsync` で転送する(`scripts/deploy.sh`)。2回目以降の再デプロイもこのコマンド一つでよい。
+`npm run package`(`release/server.js` + `release/public/` を生成)を実行してから、`deploy/deploy.env` の設定に従って `rsync` で転送する(`scripts/deploy.sh`)。
 
 ### 3. Pi 側の準備(初回のみ)
 
@@ -90,3 +90,14 @@ sudo journalctl -u nas-fm -f   # ログ確認
 - Web 側でファイルを作成・編集後、`ls -l /srv/nas/share` でグループが `nas`・パーミッションが `-rw-rw-r--`(ディレクトリは `drwxrwsr-x`)になっているか確認し、Samba 経由でも同じファイルを編集・削除できることを確認する
 
 詰まったときは `docs/spec.md` §9(トラブルシューティング)を参照。
+
+## 更新のデプロイ(2回目以降)
+
+初回セットアップ(上記1〜4)が済んでいれば、コード変更後の反映は以下の2コマンドのみでよい。
+
+```bash
+npm run deploy
+ssh pi-user@<PiのIP> "sudo systemctl restart nas-fm"
+```
+
+`rsync` はファイルを置き換えるだけでプロセスは再起動しないため、**`systemctl restart` を忘れると新しいコードが反映されない**点に注意する。
