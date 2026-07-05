@@ -112,4 +112,33 @@ describe("FileBrowser", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(localStorage.getItem("nas-fm:view-mode")).toBe("grid");
   });
+
+  it("グリッド表示ではソートメニューを表示し、テーブル表示では隠す", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({ path: "", entries: [] });
+    const { container } = renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /名前 ▲/ })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "テーブル表示" }));
+    // FileTable の「名前」ヘッダーもデフォルトソート状態では同じアクセシブルネーム
+    // （"名前 ▲"）になるため、ロールクエリでは区別できない。SortMenu 固有の
+    // ArrowUpDown アイコンの有無で判定する。
+    expect(container.querySelector(".lucide-arrow-up-down")).not.toBeInTheDocument();
+  });
+
+  it("ソートメニューの選択で並び順が変わる", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [
+        { name: "big.bin", size: 100, mtime: 0, type: "file" },
+        { name: "small.bin", size: 1, mtime: 0, type: "file" },
+      ],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("big.bin")).toBeInTheDocument());
+    const names = () => screen.getAllByTitle(/\.bin$/).map((el) => el.textContent);
+    expect(names()).toEqual(["big.bin", "small.bin"]);
+
+    await userEvent.click(screen.getByRole("button", { name: /名前 ▲/ }));
+    await userEvent.click(await screen.findByRole("menuitemradio", { name: "サイズ" }));
+    await waitFor(() => expect(names()).toEqual(["small.bin", "big.bin"]));
+  });
 });

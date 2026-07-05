@@ -14,6 +14,7 @@ import { PreviewDialog } from "../dialogs/PreviewDialog";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileTable } from "./FileTable";
 import { FileGrid } from "./FileGrid";
+import { SortMenu } from "./SortMenu";
 
 type ViewMode = "table" | "grid";
 const VIEW_MODE_KEY = "nas-fm:view-mode";
@@ -59,6 +60,14 @@ export function FileBrowser() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {viewMode === "grid" && (
+          <SortMenu
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSortKeyChange={setSortKey}
+            onSortDirChange={setSortDir}
+          />
+        )}
         <Button
           variant={viewMode === "grid" ? "secondary" : "ghost"}
           size="icon"
