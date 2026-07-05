@@ -70,7 +70,7 @@ export function FileGrid({
             {entry.type === "dir" ? (
               <Folder size={40} className="text-muted-foreground" />
             ) : (
-              <Thumbnail name={entry.name} relPath={rel(entry.name)} />
+              <Thumbnail key={rel(entry.name)} name={entry.name} relPath={rel(entry.name)} />
             )}
           </div>
           <p className="truncate px-2 py-1.5 text-sm" title={entry.name}>
