@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
 import { classifyPreview } from "@nas-fm/shared";
 import { File, Film, Folder, Image as ImageIcon } from "lucide-react";
@@ -7,7 +7,27 @@ import { RowActions } from "./RowActions";
 
 function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
   const [failed, setFailed] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const kind = classifyPreview(name);
+
+  useEffect(() => {
+    if (kind !== "video" || visible) return;
+    const el = videoContainerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [kind, visible]);
+
   if (kind === "image" && !failed) {
     return (
       <img
@@ -21,18 +41,24 @@ function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
   }
   if (kind === "video" && !failed) {
     return (
-      <video
-        src={`${api.previewUrl(relPath)}#t=1`}
-        preload="metadata"
-        muted
-        playsInline
-        className="pointer-events-none h-full w-full object-cover"
-        onError={() => setFailed(true)}
-        onLoadedMetadata={(e) => {
-          // 音声のみの .ogg など映像トラックが無いと真っ黒なカードになるため
-          if (e.currentTarget.videoWidth === 0) setFailed(true);
-        }}
-      />
+      <div ref={videoContainerRef} className="flex h-full w-full items-center justify-center">
+        {visible ? (
+          <video
+            src={`${api.previewUrl(relPath)}#t=1`}
+            preload="metadata"
+            muted
+            playsInline
+            className="pointer-events-none h-full w-full object-cover"
+            onError={() => setFailed(true)}
+            onLoadedMetadata={(e) => {
+              // 音声のみの .ogg など映像トラックが無いと真っ黒なカードになるため
+              if (e.currentTarget.videoWidth === 0) setFailed(true);
+            }}
+          />
+        ) : (
+          <Film size={40} className="text-muted-foreground" />
+        )}
+      </div>
     );
   }
   if (kind === "image") return <ImageIcon size={40} className="text-muted-foreground" />;

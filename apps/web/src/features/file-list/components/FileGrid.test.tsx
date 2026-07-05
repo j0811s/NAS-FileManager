@@ -1,5 +1,5 @@
 import type { FileEntry } from "@nas-fm/shared";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { FileGrid } from "./FileGrid";
@@ -110,5 +110,57 @@ describe("FileGrid", () => {
     Object.defineProperty(video, "videoWidth", { value: 640 });
     fireEvent(video, new Event("loadedmetadata"));
     expect(container.querySelector("video")).not.toBeNull();
+  });
+
+  it("動画はビューポートに入るまでvideo要素をマウントしない(遅延読み込み)", () => {
+    let capturedCallback: IntersectionObserverCallback | undefined;
+    class ManualIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        capturedCallback = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    vi.stubGlobal("IntersectionObserver", ManualIntersectionObserver);
+
+    const { container } = renderGrid();
+    expect(container.querySelector("video")).toBeNull();
+
+    act(() => {
+      capturedCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(container.querySelector("video")).not.toBeNull();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("ディレクトリ移動後は同名ファイルでもサムネイルの失敗状態を引き継がない", () => {
+    const catA: FileEntry = { name: "cat.jpg", size: 100, mtime: 1700000000000, type: "file" };
+    const catB: FileEntry = { name: "cat.jpg", size: 999, mtime: 1700000000000, type: "file" };
+    const { rerender } = renderGrid({ path: "dirA", entries: [catA] });
+
+    fireEvent.error(screen.getByAltText("cat.jpg"));
+    expect(screen.queryByAltText("cat.jpg")).not.toBeInTheDocument();
+
+    rerender(
+      <FileGrid
+        entries={[catB]}
+        path="dirB"
+        onOpenDir={() => {}}
+        onPreview={() => {}}
+        onRename={() => {}}
+        onDelete={() => {}}
+        onMove={() => {}}
+      />,
+    );
+
+    expect(screen.getByAltText("cat.jpg")).toBeInTheDocument();
   });
 });
