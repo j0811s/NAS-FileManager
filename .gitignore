@@ -34,5 +34,6 @@ release
 # NAS dev root
 .dev-share/
 
-# デプロイ先の接続情報（実値はコミットしない）
+# デプロイ先の接続情報・秘密値（実値はコミットしない）
 deploy/deploy.env
+deploy/nas-fm.env
