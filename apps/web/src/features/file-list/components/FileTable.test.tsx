@@ -10,6 +10,25 @@ const entries: FileEntry[] = [
 ];
 
 describe("FileTable", () => {
+  it("1GB以上のファイルはGB単位で表示する", () => {
+    render(
+      <FileTable
+        entries={[
+          { name: "big.zip", size: 2 * 1024 * 1024 * 1024, mtime: 1700000000000, type: "file" },
+        ]}
+        sortKey="name"
+        sortDir="asc"
+        onSortChange={() => {}}
+        onOpenDir={() => {}}
+        onPreview={() => {}}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    expect(screen.getByText("2.0 GB")).toBeInTheDocument();
+  });
+
   it("エントリ名を表示する", () => {
     render(
       <FileTable

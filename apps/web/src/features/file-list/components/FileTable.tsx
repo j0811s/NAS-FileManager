@@ -16,7 +16,8 @@ function formatSize(entry: FileEntry): string {
   if (entry.type === "dir") return "—";
   if (entry.size < 1024) return `${entry.size} B`;
   if (entry.size < 1024 * 1024) return `${(entry.size / 1024).toFixed(1)} KB`;
-  return `${(entry.size / 1024 / 1024).toFixed(1)} MB`;
+  if (entry.size < 1024 * 1024 * 1024) return `${(entry.size / 1024 / 1024).toFixed(1)} MB`;
+  return `${(entry.size / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 export function FileTable({
