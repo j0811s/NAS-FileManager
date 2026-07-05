@@ -45,8 +45,7 @@ export function FileBrowser() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Breadcrumbs path={path} onNavigate={setPath} />
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button size="sm" onClick={() => setMkdirOpen(true)}>
           <FolderPlus size={16} className="mr-2" />
           新しいフォルダ
@@ -54,6 +53,8 @@ export function FileBrowser() {
       </div>
 
       <UploadDropzone path={path} />
+
+      <Breadcrumbs path={path} onNavigate={setPath} />
 
       {isLoading && <p className="text-muted-foreground">読み込み中…</p>}
       {isError && (
