@@ -154,7 +154,7 @@ app.post("/api/upload", async (c) => {
 
 ## 7. デプロイ（systemd 常駐）
 
-`deploy/nas-fm.service` を `/etc/systemd/system/nas-fm.service` にコピーして使う（値は環境に合わせて書き換える）。
+`deploy/nas-fm.service` を `/etc/systemd/system/nas-fm.service` にコピーして使う（値は環境に合わせて書き換える）。秘密値（`AUTH_SECRET` / `AUTH_PASSWORD_HASH`）はユニットファイルに直書きせず、`deploy/nas-fm.env.example` を `/opt/nas-fm/nas-fm.env` としてコピーし `chmod 600` した上でそちらに書く（ユニットファイルは Git 管理下にあるため、直書きすると誤ってコミットする恐れがある）。
 
 ```ini
 [Unit]
@@ -168,10 +168,11 @@ UMask=0002
 WorkingDirectory=/opt/nas-fm
 Environment=NAS_ROOT=/srv/nas/share
 Environment=PORT=8080
-# 本番用の値に置き換えること。AUTH_SECRET はランダムな長い文字列。
+# AUTH_SECRET / AUTH_PASSWORD_HASH は秘密値のため Git 管理外の EnvironmentFile に分離する。
+# /opt/nas-fm/nas-fm.env は chmod 600 にし、root と Group= のユーザーのみ読めるようにすること。
+# AUTH_SECRET はランダムな長い文字列。
 # AUTH_PASSWORD_HASH は `npx tsx apps/server/scripts/hash-password.ts <password>` の出力を使う。
-Environment=AUTH_SECRET=<ランダムな長い文字列に置き換える>
-Environment=AUTH_PASSWORD_HASH=<hash-password.ts で生成した値に置き換える>
+EnvironmentFile=/opt/nas-fm/nas-fm.env
 ExecStart=/usr/bin/node /opt/nas-fm/server.js
 Restart=on-failure
 

@@ -54,7 +54,7 @@ npx tsx apps/server/scripts/hash-password.ts <本番パスワード>
 
 ### 4. systemd ユニットの登録
 
-`deploy/nas-fm.service` を `/etc/systemd/system/nas-fm.service` にコピーし、`User=` / `AUTH_SECRET` / `AUTH_PASSWORD_HASH` を実際の値に書き換える(値は Git に含めない)。
+`deploy/nas-fm.service` を `/etc/systemd/system/nas-fm.service` にコピーし、`User=` を実際の値に書き換える。秘密値は `deploy/nas-fm.env.example` を `/opt/nas-fm/nas-fm.env` としてコピーして `chmod 600` し、`AUTH_SECRET` / `AUTH_PASSWORD_HASH` を実際の値に書き換える(このファイルは Git に含めない)。
 
 ```bash
 sudo systemctl daemon-reload
