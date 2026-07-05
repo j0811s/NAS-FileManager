@@ -10,7 +10,7 @@ export function Breadcrumbs({
 }) {
   const segments = path ? path.split("/") : [];
   return (
-    <nav className="flex items-center gap-1 text-sm" aria-label="パンくず">
+    <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="パンくず">
       <Button variant="ghost" size="sm" onClick={() => onNavigate("")}>
         ホーム
       </Button>
