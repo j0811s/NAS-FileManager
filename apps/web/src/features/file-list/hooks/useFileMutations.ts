@@ -13,13 +13,18 @@ export function useFileMutations(path: string) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["list", path] });
   const join = (name: string) => (path ? `${path}/${name}` : name);
 
+  const onErrorAndRefresh = (err: unknown) => {
+    toastError(err);
+    invalidate();
+  };
+
   const mkdir = useMutation({
     mutationFn: (name: string) => api.mkdir(join(name)),
     onSuccess: () => {
       invalidate();
       toast.success("フォルダを作成しました");
     },
-    onError: toastError,
+    onError: onErrorAndRefresh,
   });
 
   const rename = useMutation({
@@ -28,7 +33,7 @@ export function useFileMutations(path: string) {
       invalidate();
       toast.success("名前を変更しました");
     },
-    onError: toastError,
+    onError: onErrorAndRefresh,
   });
 
   const remove = useMutation({
@@ -37,7 +42,7 @@ export function useFileMutations(path: string) {
       invalidate();
       toast.success("削除しました");
     },
-    onError: toastError,
+    onError: onErrorAndRefresh,
   });
 
   return { mkdir, rename, remove };
