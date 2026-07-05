@@ -24,7 +24,11 @@ export function UploadDropzone({ path }: { path: string }) {
 
   return (
     <Card
-      className={`flex cursor-pointer flex-col items-center gap-2 border-dashed p-6 text-center ${dragOver ? "bg-accent" : ""}`}
+      className={`flex cursor-pointer flex-col items-center gap-3 border-2 border-dashed p-8 text-center transition-colors ${
+        dragOver
+          ? "border-primary bg-primary/10"
+          : "border-muted-foreground/30 bg-muted hover:bg-accent"
+      }`}
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => {
         e.preventDefault();
@@ -33,8 +37,8 @@ export function UploadDropzone({ path }: { path: string }) {
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      <Upload size={20} />
-      <p className="text-sm text-muted-foreground">
+      <Upload size={32} className={dragOver ? "text-primary" : "text-muted-foreground"} />
+      <p className="text-sm font-medium">
         ここにドラッグ＆ドロップ、またはクリックしてアップロード
       </p>
       <input
