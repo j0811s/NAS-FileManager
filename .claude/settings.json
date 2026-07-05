@@ -13,7 +13,10 @@
       "Bash(sudo:*)",
       "Bash(git push --force:*)",
       "Bash(curl:*)",
-      "Bash(brew:*)"
+      "Bash(brew:*)",
+      "Read(/.env)",
+      "Read(/.env.*)",
+      "Read(/deploy/deploy.env)"
     ],
     "ask": ["Bash(git commit:*)", "Bash(npm install)", "Bash(npm ci)"]
   },
@@ -31,5 +34,9 @@
         ]
       }
     ]
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
   }
 }
