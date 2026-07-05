@@ -49,21 +49,13 @@ sudo chmod 2775 /srv/nas/share   # setgid
 `deploy/nas-fm.service` を転送し、Pi 側で配置する。`release/` の再デプロイ(`npm run deploy`)とは別に、初回セットアップ時のみ行う。
 
 ```bash
-# 1. 転送(開発機側)
 scp deploy/nas-fm.service pi-user@<PiのIP>:/tmp/
 
-# 2. 配置・reload をまとめて実行(開発機側から1回のsshで)
 ssh pi-user@<PiのIP> '
   sudo mv /tmp/nas-fm.service /etc/systemd/system/nas-fm.service &&
+  sudo sed -i "s/<あなたのユーザー名>/pi-user/" /etc/systemd/system/nas-fm.service &&
   sudo systemctl daemon-reload
 '
-```
-
-`nas-fm.service` の `User=` だけは手動でログインして書き換える:
-
-```bash
-ssh pi-user@<PiのIP>
-sudo nano /etc/systemd/system/nas-fm.service   # User= を書き換え
 ```
 
 `AUTH_SECRET`(ランダムな長い文字列)と本番パスワードのハッシュを生成し、`nas-fm.env` を作成(開発機側から1回のsshで):
