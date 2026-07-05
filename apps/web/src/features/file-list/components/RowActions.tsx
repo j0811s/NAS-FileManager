@@ -1,5 +1,5 @@
 import type { FileEntry } from "@nas-fm/shared";
-import { Download, Eye, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Download, Eye, FolderInput, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,12 +15,14 @@ export function RowActions({
   onPreview,
   onRename,
   onDelete,
+  onMove,
 }: {
   entry: FileEntry;
   path: string;
   onPreview: (entry: FileEntry) => void;
   onRename: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
+  onMove: (entry: FileEntry) => void;
 }) {
   const rel = path ? `${path}/${entry.name}` : entry.name;
   return (
@@ -48,6 +50,10 @@ export function RowActions({
         <DropdownMenuItem onClick={() => onRename(entry)}>
           <Pencil size={16} className="mr-2" />
           名前を変更
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onMove(entry)}>
+          <FolderInput size={16} className="mr-2" />
+          移動
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onDelete(entry)}>
           <Trash2 size={16} className="mr-2" />

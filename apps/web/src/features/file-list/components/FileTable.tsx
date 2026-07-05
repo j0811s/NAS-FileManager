@@ -30,6 +30,7 @@ export function FileTable({
   path,
   onRename,
   onDelete,
+  onMove,
 }: {
   entries: FileEntry[];
   sortKey: SortKey;
@@ -40,6 +41,7 @@ export function FileTable({
   path: string;
   onRename: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
+  onMove: (entry: FileEntry) => void;
 }) {
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "");
   return (
@@ -86,6 +88,7 @@ export function FileTable({
                 onPreview={onPreview}
                 onRename={onRename}
                 onDelete={onDelete}
+                onMove={onMove}
               />
             </TableCell>
           </TableRow>

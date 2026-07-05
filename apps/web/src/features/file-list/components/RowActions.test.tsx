@@ -15,6 +15,7 @@ describe("RowActions", () => {
         onPreview={() => {}}
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByLabelText("操作メニュー"));
@@ -34,6 +35,7 @@ describe("RowActions", () => {
         onPreview={() => {}}
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByLabelText("操作メニュー"));
@@ -50,11 +52,29 @@ describe("RowActions", () => {
         onPreview={onPreview}
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByLabelText("操作メニュー"));
     await userEvent.click(await screen.findByRole("menuitem", { name: /プレビュー/ }));
     expect(onPreview).toHaveBeenCalledWith(file);
+  });
+
+  it("操作メニューから onMove を呼ぶ", async () => {
+    const onMove = vi.fn();
+    render(
+      <RowActions
+        entry={file}
+        path="docs"
+        onPreview={() => {}}
+        onRename={() => {}}
+        onDelete={() => {}}
+        onMove={onMove}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("操作メニュー"));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /移動/ }));
+    expect(onMove).toHaveBeenCalledWith(file);
   });
 
   it("ディレクトリの操作メニューにはプレビュー項目を出さない", async () => {
@@ -66,6 +86,7 @@ describe("RowActions", () => {
         onPreview={() => {}}
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByLabelText("操作メニュー"));

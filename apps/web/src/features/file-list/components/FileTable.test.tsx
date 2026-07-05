@@ -24,6 +24,7 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     expect(screen.getByText("2.0 GB")).toBeInTheDocument();
@@ -41,6 +42,7 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     expect(screen.getByText("sub")).toBeInTheDocument();
@@ -60,6 +62,7 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByText("sub"));
@@ -79,6 +82,7 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByText("a.txt"));
@@ -99,6 +103,7 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByText("12 B"));
@@ -120,11 +125,33 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getAllByRole("button", { name: "操作メニュー" })[0]);
     expect(onPreview).not.toHaveBeenCalled();
     expect(onOpenDir).not.toHaveBeenCalled();
+  });
+
+  it("操作メニューの移動から onMove を呼ぶ", async () => {
+    const onMove = vi.fn();
+    render(
+      <FileTable
+        entries={entries}
+        sortKey="name"
+        sortDir="asc"
+        onSortChange={() => {}}
+        onOpenDir={() => {}}
+        onPreview={() => {}}
+        path=""
+        onRename={() => {}}
+        onDelete={() => {}}
+        onMove={onMove}
+      />,
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "操作メニュー" })[0]);
+    await userEvent.click(await screen.findByRole("menuitem", { name: /移動/ }));
+    expect(onMove).toHaveBeenCalledWith(entries[0]);
   });
 
   it("名前ヘッダクリックで onSortChange('name')", async () => {
@@ -140,6 +167,7 @@ describe("FileTable", () => {
         path=""
         onRename={() => {}}
         onDelete={() => {}}
+        onMove={() => {}}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /名前/ }));
