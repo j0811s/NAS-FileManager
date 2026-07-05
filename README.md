@@ -44,6 +44,12 @@ sudo chown -R <ユーザー名>:nas /srv/nas/share
 sudo chmod 2775 /srv/nas/share   # setgid
 ```
 
+`AUTH_SECRET`(ランダムな長い文字列)を生成:
+
+```bash
+openssl rand -base64 48
+```
+
 本番パスワードのハッシュを生成:
 
 ```bash
@@ -55,16 +61,25 @@ npx tsx apps/server/scripts/hash-password.ts <本番パスワード>
 `deploy/nas-fm.service` と `deploy/nas-fm.env.example` を転送し、Pi 側で配置する。`release/` の再デプロイ(`npm run deploy`)とは別に、初回セットアップ時のみ行う(`nas-fm.env` は後で実際の秘密値に書き換えるため、以降の再デプロイで誤って上書きしないよう `scripts/deploy.sh` の対象には含めていない)。
 
 ```bash
-scp deploy/nas-fm.service deploy/nas-fm.env.example pi-user@<PiのIP>:~/
-ssh pi-user@<PiのIP>
-sudo mv ~/nas-fm.service /etc/systemd/system/nas-fm.service
-sudo mv ~/nas-fm.env.example /opt/nas-fm/nas-fm.env
-sudo chmod 600 /opt/nas-fm/nas-fm.env
-# ここで nas-fm.service の User=、nas-fm.env の AUTH_SECRET/AUTH_PASSWORD_HASH を編集する
+# 1. 転送(開発機側)
+scp deploy/nas-fm.service deploy/nas-fm.env.example pi-user@<PiのIP>:/tmp/
+
+# 2. 配置・権限・reload をまとめて実行(開発機側から1回のsshで)
+ssh pi-user@<PiのIP> '
+  sudo mv /tmp/nas-fm.service /etc/systemd/system/nas-fm.service &&
+  sudo mv /tmp/nas-fm.env.example /opt/nas-fm/nas-fm.env &&
+  sudo chown $(whoami):nas /opt/nas-fm/nas-fm.env &&
+  sudo chmod 600 /opt/nas-fm/nas-fm.env &&
+  sudo systemctl daemon-reload
+'
 ```
 
+秘密値の編集だけは手動でログインして行う:
+
 ```bash
-sudo systemctl daemon-reload
+ssh pi-user@<PiのIP>
+sudo nano /etc/systemd/system/nas-fm.service   # User= を書き換え
+sudo nano /opt/nas-fm/nas-fm.env               # AUTH_SECRET/AUTH_PASSWORD_HASH を書き換え
 sudo systemctl enable --now nas-fm
 sudo systemctl status nas-fm --no-pager
 sudo journalctl -u nas-fm -f   # ログ確認
