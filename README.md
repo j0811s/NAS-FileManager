@@ -48,6 +48,9 @@ sudo chmod 2775 /srv/nas/share   # setgid
 
 `deploy/nas-fm.service` を転送し、Pi 側で配置する。`release/` の再デプロイ(`npm run deploy`)とは別に、初回セットアップ時のみ行う。
 
+> **以下のコマンドはすべて開発機(Mac)側、プロジェクトルートのターミナルで実行する。**
+> Pi に ssh ログインした状態のシェルに貼り付けない(`hash-password.ts` はリポジトリ内のファイルなので Pi 上には無く、`ERR_MODULE_NOT_FOUND` になる)。`ssh pi-user@<PiのIP> '...'` の行はコマンドの一部であり、事前に別途ログインする必要はない。
+
 ```bash
 scp deploy/nas-fm.service pi-user@<PiのIP>:/tmp/
 
