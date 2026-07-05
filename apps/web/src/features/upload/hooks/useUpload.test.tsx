@@ -41,6 +41,33 @@ describe("useUpload", () => {
     expect(error).toHaveBeenCalled();
   });
 
+  it("アップロード中はタブを閉じようとすると確認を出し、完了後は解除する", async () => {
+    let resolveUpload!: () => void;
+    vi.spyOn(api, "upload").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+    const addSpy = vi.spyOn(window, "addEventListener");
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    const { result } = renderHook(() => useUpload("docs"), { wrapper });
+
+    let uploadPromise!: Promise<void>;
+    act(() => {
+      uploadPromise = result.current.upload(new File(["x"], "a.txt"));
+    });
+    expect(result.current.isUploading).toBe(true);
+    expect(addSpy).toHaveBeenCalledWith("beforeunload", expect.any(Function));
+
+    await act(async () => {
+      resolveUpload();
+      await uploadPromise;
+    });
+    expect(result.current.isUploading).toBe(false);
+    expect(removeSpy).toHaveBeenCalledWith("beforeunload", expect.any(Function));
+  });
+
   it("401 エラーでは ['me'] を無効化しつつエラートーストも出す", async () => {
     vi.spyOn(api, "upload").mockRejectedValue(
       new ApiRequestError("UNAUTHORIZED", "認証が必要です"),
