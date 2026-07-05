@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
-import { FolderPlus } from "lucide-react";
+import { FolderPlus, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UploadDropzone } from "@/features/upload";
 import { useFileList } from "../hooks/useFileList";
@@ -13,6 +13,14 @@ import { MoveDialog } from "../dialogs/MoveDialog";
 import { PreviewDialog } from "../dialogs/PreviewDialog";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileTable } from "./FileTable";
+import { FileGrid } from "./FileGrid";
+
+type ViewMode = "table" | "grid";
+const VIEW_MODE_KEY = "nas-fm:view-mode";
+
+function loadViewMode(): ViewMode {
+  return localStorage.getItem(VIEW_MODE_KEY) === "table" ? "table" : "grid";
+}
 
 export function FileBrowser() {
   const [path, setPath] = useState("");
@@ -23,6 +31,7 @@ export function FileBrowser() {
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileEntry | null>(null);
   const [previewTarget, setPreviewTarget] = useState<FileEntry | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(loadViewMode);
   const { data, isLoading, isError, refetch } = useFileList(path);
   const { mkdir, rename, remove } = useFileMutations(path);
 
@@ -41,11 +50,31 @@ export function FileBrowser() {
   function openDir(name: string) {
     setPath(path ? `${path}/${name}` : name);
   }
+  function changeViewMode(mode: ViewMode) {
+    setViewMode(mode);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+  }
   const rel = (name: string) => (path ? `${path}/${name}` : name);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          variant={viewMode === "grid" ? "secondary" : "ghost"}
+          size="icon"
+          aria-label="グリッド表示"
+          onClick={() => changeViewMode("grid")}
+        >
+          <LayoutGrid size={16} />
+        </Button>
+        <Button
+          variant={viewMode === "table" ? "secondary" : "ghost"}
+          size="icon"
+          aria-label="テーブル表示"
+          onClick={() => changeViewMode("table")}
+        >
+          <List size={16} />
+        </Button>
         <Button size="sm" onClick={() => setMkdirOpen(true)}>
           <FolderPlus size={16} className="mr-2" />
           新しいフォルダ
@@ -65,7 +94,7 @@ export function FileBrowser() {
           </Button>
         </div>
       )}
-      {data && (
+      {data && viewMode === "table" && (
         <FileTable
           entries={sorted}
           sortKey={sortKey}
@@ -74,6 +103,17 @@ export function FileBrowser() {
           onOpenDir={openDir}
           onPreview={setPreviewTarget}
           path={path}
+          onRename={setRenameTarget}
+          onDelete={setDeleteTarget}
+          onMove={setMoveTarget}
+        />
+      )}
+      {data && viewMode === "grid" && (
+        <FileGrid
+          entries={sorted}
+          path={path}
+          onOpenDir={openDir}
+          onPreview={setPreviewTarget}
           onRename={setRenameTarget}
           onDelete={setDeleteTarget}
           onMove={setMoveTarget}

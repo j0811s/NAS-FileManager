@@ -11,7 +11,10 @@ function renderWithClient(ui: ReactNode) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 describe("FileBrowser", () => {
   it("一覧を表示する", async () => {
@@ -70,5 +73,43 @@ describe("FileBrowser", () => {
     renderWithClient(<FileBrowser />);
     await waitFor(() => expect(screen.getByText(/読み込みに失敗/)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "再試行" })).toBeInTheDocument();
+  });
+
+  it("初期表示はグリッド(localStorage 未保存時)", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("localStorage に table が保存されていればテーブル表示で始まる", async () => {
+    localStorage.setItem("nas-fm:view-mode", "table");
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("切替ボタンで表示が切り替わり localStorage に保存される", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "テーブル表示" }));
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(localStorage.getItem("nas-fm:view-mode")).toBe("table");
+
+    await userEvent.click(screen.getByRole("button", { name: "グリッド表示" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(localStorage.getItem("nas-fm:view-mode")).toBe("grid");
   });
 });
