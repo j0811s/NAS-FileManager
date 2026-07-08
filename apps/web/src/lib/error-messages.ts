@@ -8,6 +8,7 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   NOT_FOUND: "見つかりませんでした",
   CONFLICT: "同名の項目が既に存在します",
   UNAUTHORIZED: "認証が必要です",
+  UNSUPPORTED: "サポートされていない操作です",
   INTERNAL: "サーバでエラーが発生しました",
 };
 

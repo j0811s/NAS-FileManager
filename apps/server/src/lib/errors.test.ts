@@ -19,6 +19,7 @@ describe("statusOf", () => {
     ["UNAUTHORIZED", 401],
     ["NOT_FOUND", 404],
     ["CONFLICT", 409],
+    ["UNSUPPORTED", 501],
     ["INTERNAL", 500],
   ] as const)("%s は %d", (code, status) => {
     expect(statusOf(code)).toBe(status);

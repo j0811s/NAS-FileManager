@@ -21,6 +21,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "UNAUTHORIZED"
+  | "UNSUPPORTED"
   | "INTERNAL";
 
 export interface ApiError {

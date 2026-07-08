@@ -10,7 +10,7 @@ export class AppError extends Error {
   }
 }
 
-export function statusOf(code: ApiErrorCode): 400 | 401 | 404 | 409 | 500 {
+export function statusOf(code: ApiErrorCode): 400 | 401 | 404 | 409 | 500 | 501 {
   switch (code) {
     case "PATH_TRAVERSAL":
     case "INVALID_REQUEST":
@@ -23,6 +23,8 @@ export function statusOf(code: ApiErrorCode): 400 | 401 | 404 | 409 | 500 {
       return 404;
     case "CONFLICT":
       return 409;
+    case "UNSUPPORTED":
+      return 501;
     case "INTERNAL":
       return 500;
   }
