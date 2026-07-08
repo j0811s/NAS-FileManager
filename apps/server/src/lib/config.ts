@@ -20,3 +20,14 @@ export function resolveNasRoot(): string {
   mkdirSync(devRoot, { recursive: true });
   return devRoot;
 }
+
+/**
+ * THUMB_CACHE_DIR 環境変数からサムネイルキャッシュディレクトリを解決する。
+ * 未設定の場合は <cwd>/.thumb-cache を使う。いずれの場合も無ければ作成する
+ * （NAS_ROOT と違い生成物の置き場なので、存在しないことは設定ミスではない）。
+ */
+export function resolveThumbCacheDir(): string {
+  const dir = path.resolve(process.env.THUMB_CACHE_DIR ?? path.join(process.cwd(), ".thumb-cache"));
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}

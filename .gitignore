@@ -34,6 +34,7 @@ release
 
 # NAS dev root
 .dev-share/
+.thumb-cache/
 
 # デプロイ先の接続情報・秘密値（実値はコミットしない）
 deploy/deploy.env
