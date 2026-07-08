@@ -22,19 +22,41 @@ export interface ThumbnailService {
 
 export function createThumbnailService(opts: ThumbnailServiceOptions): ThumbnailService {
   const { root, cacheDir, runFfmpeg } = opts;
+  /** キー→生成中 Promise。同一ファイルへの並行リクエストで ffmpeg を重複起動しない */
+  const inflight = new Map<string, Promise<string>>();
+  /** Pi 5 (4GB) 保護のため ffmpeg の同時実行数を制限する */
+  const MAX_CONCURRENT = 2;
+  let running = 0;
+  const waiters: Array<() => void> = [];
+
+  async function acquire(): Promise<void> {
+    if (running < MAX_CONCURRENT) {
+      running++;
+      return;
+    }
+    await new Promise<void>((resolve) => waiters.push(resolve));
+    running++;
+  }
+
+  function release(): void {
+    running--;
+    waiters.shift()?.();
+  }
 
   async function generate(abs: string, cachePath: string): Promise<string> {
     if (!runFfmpeg) {
       throw new AppError("UNSUPPORTED", "ffmpeg is not available");
     }
-    await fs.mkdir(cacheDir, { recursive: true });
+    await acquire();
     // 同一ファイルシステム内の rename でアトミックに配置するため、一時ファイルはキャッシュディレクトリ内に置く
     const tmp = `${cachePath}.tmp-${randomBytes(6).toString("hex")}`;
     try {
+      await fs.mkdir(cacheDir, { recursive: true });
       await runFfmpeg(abs, tmp);
       await fs.rename(tmp, cachePath);
       return cachePath;
     } finally {
+      release();
       await fs.rm(tmp, { force: true }).catch(() => undefined);
     }
   }
@@ -61,7 +83,13 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
       if (cached) {
         return cachePath;
       }
-      return generate(abs, cachePath);
+      const existing = inflight.get(key);
+      if (existing) {
+        return existing;
+      }
+      const promise = generate(abs, cachePath).finally(() => inflight.delete(key));
+      inflight.set(key, promise);
+      return promise;
     },
   };
 }

@@ -100,4 +100,52 @@ describe("createThumbnailService.getThumbnail", () => {
     await expect(svc.getThumbnail("mov.mp4")).rejects.toThrow("ffmpeg failed");
     expect(await readdir(cacheDir)).toEqual([]);
   });
+
+  it("同一ファイルへの並行リクエストは生成を1回だけ行い同じ結果を返す", async () => {
+    await writeFile(path.join(root, "mov.mp4"), "data");
+    let releaseGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    const runner: FfmpegRunner = vi.fn(async (_absIn, absOut) => {
+      await gate;
+      await writeFile(absOut, "jpeg-bytes");
+    });
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: runner });
+    const p1 = svc.getThumbnail("mov.mp4");
+    const p2 = svc.getThumbnail("mov.mp4");
+    releaseGate();
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1).toBe(r2);
+    expect(runner).toHaveBeenCalledTimes(1);
+  });
+
+  it("生成は最大2並列に制限される", async () => {
+    for (const name of ["a.mp4", "b.mp4", "c.mp4"]) {
+      await writeFile(path.join(root, name), name);
+    }
+    let current = 0;
+    let max = 0;
+    const gates: Array<() => void> = [];
+    const runner: FfmpegRunner = async (_absIn, absOut) => {
+      current++;
+      max = Math.max(max, current);
+      await new Promise<void>((resolve) => gates.push(resolve));
+      current--;
+      await writeFile(absOut, "x");
+    };
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: runner });
+    const all = Promise.all([svc.getThumbnail("a.mp4"), svc.getThumbnail("b.mp4"), svc.getThumbnail("c.mp4")]);
+    // 2件目までは開始されるが、3件目はセマフォ待ちになる
+    await vi.waitFor(() => expect(gates.length).toBe(2));
+    expect(current).toBe(2);
+    // 1件解放すると3件目が開始される
+    gates.shift()!();
+    await vi.waitFor(() => expect(gates.length).toBe(2));
+    // 残りを解放して完了させる
+    gates.shift()!();
+    gates.shift()!();
+    await all;
+    expect(max).toBe(2);
+  });
 });
