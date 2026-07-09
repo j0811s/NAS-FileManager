@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { classifyPreview } from "@nas-fm/shared";
@@ -92,4 +93,76 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
       return promise;
     },
   };
+}
+
+export interface ProcessRunnerSpec {
+  command: string;
+  args: (absIn: string, absOut: string) => string[];
+  timeoutMs: number;
+}
+
+/** 外部コマンドを spawn する FfmpegRunner を作る。タイムアウトで SIGKILL する。 */
+export function createProcessRunner(spec: ProcessRunnerSpec): FfmpegRunner {
+  return (absIn, absOut) =>
+    new Promise<void>((resolve, reject) => {
+      const child = spawn(spec.command, spec.args(absIn, absOut), { stdio: "ignore" });
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new AppError("INTERNAL", "thumbnail generation timed out"));
+      }, spec.timeoutMs);
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          reject(new AppError("UNSUPPORTED", "ffmpeg is not available"));
+          return;
+        }
+        reject(new AppError("INTERNAL", `failed to run ffmpeg: ${String(err)}`));
+      });
+      child.on("close", (exitCode) => {
+        clearTimeout(timer);
+        // タイムアウト reject 済みの場合、この resolve/reject は無視される（Promise は一度しか確定しない）
+        if (exitCode === 0) {
+          resolve();
+        } else {
+          reject(new AppError("INVALID_REQUEST", "failed to generate thumbnail"));
+        }
+      });
+    });
+}
+
+/**
+ * 本番用 runner。-ss 1 で 1 秒目のフレームを抽出（1 秒未満の動画は ffmpeg が末尾にクランプ）。
+ * 出力の拡張子が .tmp-xxx のため、-c:v mjpeg -f image2 で形式を明示する。
+ */
+export const ffmpegRunner: FfmpegRunner = createProcessRunner({
+  command: "ffmpeg",
+  args: (absIn, absOut) => [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-ss",
+    "1",
+    "-i",
+    absIn,
+    "-frames:v",
+    "1",
+    "-vf",
+    "scale=480:-2",
+    "-c:v",
+    "mjpeg",
+    "-f",
+    "image2",
+    "-y",
+    absOut,
+  ],
+  timeoutMs: 15_000,
+});
+
+/** ffmpeg が実行可能かを起動時に確認する用 */
+export function detectFfmpeg(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn("ffmpeg", ["-version"], { stdio: "ignore" });
+    child.on("error", () => resolve(false));
+    child.on("close", (code) => resolve(code === 0));
+  });
 }

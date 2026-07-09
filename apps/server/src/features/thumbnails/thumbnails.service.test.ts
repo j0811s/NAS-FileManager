@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createThumbnailService, type FfmpegRunner } from "./thumbnails.service";
+import { createProcessRunner, createThumbnailService, type FfmpegRunner } from "./thumbnails.service";
 
 let root: string;
 let cacheParent: string;
@@ -147,5 +147,48 @@ describe("createThumbnailService.getThumbnail", () => {
     gates.shift()!();
     await all;
     expect(max).toBe(2);
+  });
+});
+
+describe("createProcessRunner", () => {
+  it("コマンド成功(exit 0)で resolve し、出力が書かれる", async () => {
+    const out = path.join(cacheParent, "out.jpg");
+    const runner = createProcessRunner({
+      command: process.execPath,
+      // node -e <script> <absOut> — 固定 args の代わりにテスト用スクリプトで absOut へ書き込む
+      args: (_absIn, absOut) => ["-e", "require('node:fs').writeFileSync(process.argv[1], 'ok')", absOut],
+      timeoutMs: 10_000,
+    });
+    await runner("in.mp4", out);
+    expect(await readFile(out, "utf8")).toBe("ok");
+  });
+
+  it("コマンド失敗(exit 非0)は INVALID_REQUEST", async () => {
+    const runner = createProcessRunner({
+      command: process.execPath,
+      args: () => ["-e", "process.exit(1)"],
+      timeoutMs: 10_000,
+    });
+    await expect(runner("in.mp4", "out.jpg")).rejects.toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+  });
+
+  it("コマンド不在(ENOENT)は UNSUPPORTED", async () => {
+    const runner = createProcessRunner({
+      command: "nasfm-definitely-missing-command",
+      args: () => [],
+      timeoutMs: 10_000,
+    });
+    await expect(runner("in.mp4", "out.jpg")).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  });
+
+  it("タイムアウトでプロセスを kill し INTERNAL", async () => {
+    const runner = createProcessRunner({
+      command: process.execPath,
+      args: () => ["-e", "setTimeout(() => {}, 60_000)"],
+      timeoutMs: 200,
+    });
+    await expect(runner("in.mp4", "out.jpg")).rejects.toMatchObject({ code: "INTERNAL" });
   });
 });
