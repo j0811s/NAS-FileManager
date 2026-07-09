@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createProcessRunner, createThumbnailService, type FfmpegRunner } from "./thumbnails.service";
+import { createProcessRunner, createThumbnailService, detectFfmpeg, type FfmpegRunner } from "./thumbnails.service";
 
 let root: string;
 let cacheParent: string;
@@ -190,5 +190,12 @@ describe("createProcessRunner", () => {
       timeoutMs: 200,
     });
     await expect(runner("in.mp4", "out.jpg")).rejects.toMatchObject({ code: "INTERNAL" });
+  });
+});
+
+describe("detectFfmpeg", () => {
+  it("resolves within a few seconds even if ffmpeg is slow or absent", async () => {
+    const result = await detectFfmpeg();
+    expect(typeof result).toBe("boolean");
   });
 });

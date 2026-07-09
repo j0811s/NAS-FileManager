@@ -158,11 +158,21 @@ export const ffmpegRunner: FfmpegRunner = createProcessRunner({
   timeoutMs: 15_000,
 });
 
-/** ffmpeg が実行可能かを起動時に確認する用 */
+/** ffmpeg が実行可能かを起動時に確認する用。ハングした場合もサーバー起動をブロックし続けないようタイムアウトする。 */
 export function detectFfmpeg(): Promise<boolean> {
   return new Promise((resolve) => {
     const child = spawn("ffmpeg", ["-version"], { stdio: "ignore" });
-    child.on("error", () => resolve(false));
-    child.on("close", (code) => resolve(code === 0));
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      resolve(false);
+    }, 5_000);
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve(code === 0);
+    });
   });
 }
