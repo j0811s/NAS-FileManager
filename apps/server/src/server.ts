@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app";
 import { resolveAuthConfig } from "./lib/auth-config";
-import { resolveNasRoot } from "./lib/config";
+import { resolveNasRoot, resolveThumbCacheDir } from "./lib/config";
+import { detectFfmpeg, ffmpegRunner } from "./features/thumbnails/thumbnails.service";
 
 const root = resolveNasRoot();
 const authConfig = resolveAuthConfig();
@@ -16,7 +17,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, "public");
 const staticDir = existsSync(publicDir) ? publicDir : undefined;
 
-const app = createApp(root, authConfig, staticDir);
+const ffmpegAvailable = await detectFfmpeg();
+if (!ffmpegAvailable) {
+  console.warn("ffmpeg not found: video thumbnails are disabled (/api/thumbnail returns 501)");
+}
+
+const app = createApp(root, authConfig, staticDir, {
+  cacheDir: resolveThumbCacheDir(),
+  runFfmpeg: ffmpegAvailable ? ffmpegRunner : null,
+});
 const port = Number(process.env.PORT) || 8080;
 
 serve({ fetch: app.fetch, hostname: "0.0.0.0", port }, (info) => {
