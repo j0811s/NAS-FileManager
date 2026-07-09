@@ -168,6 +168,7 @@ UMask=0002
 WorkingDirectory=/opt/nas-fm
 Environment=NAS_ROOT=/srv/nas/share
 Environment=PORT=8080
+Environment=THUMB_CACHE_DIR=/opt/nas-fm/.thumb-cache
 # AUTH_SECRET / AUTH_PASSWORD_HASH は秘密値のため Git 管理外の EnvironmentFile に分離する。
 # /opt/nas-fm/nas-fm.env は chmod 600 にし、root と Group= のユーザーのみ読めるようにすること。
 # AUTH_SECRET はランダムな長い文字列。
@@ -190,6 +191,7 @@ sudo systemctl status nas-fm --no-pager
 - `UMask=0002` は権限統一のため必須
 - `--address 0.0.0.0`（Hono 側の listen 設定）で LAN の他デバイスからアクセス可
 - ポートは他サービス（OMV / 既存の 8080 等）と重複しないよう決める
+- 動画サムネイル生成に ffmpeg を使うため `sudo apt install ffmpeg` を実行しておく（無くても起動はするがサムネイルは 501 になり一覧はアイコン表示になる）
 
 ---
 
@@ -264,6 +266,7 @@ sudo tailscale up
 - **Range 対応が前提**。`<video controls>` にストリーミング URL を渡すだけ。
 - コーデックは**再生側（Mac/iPhone のブラウザ）でデコードされ、Pi はバイトを流すだけ**。mp4/H.264（端末により HEVC）はそのまま再生可能。
 - mkv/avi や特殊コーデックはブラウザが再生できないことがある。**Pi 上での ffmpeg トランスコードは非常に重いので行わず、「再生できない形式は DL に誘導」**する。
+- **一覧サムネイル**はサーバ側で ffmpeg の 1 フレーム抽出（`-ss 1 -frames:v 1`、幅 480px の JPEG）により生成し、`GET /api/thumbnail` で配信する。キャッシュは `THUMB_CACHE_DIR`（未設定時 `<cwd>/.thumb-cache`）にパス+mtime+size のハッシュをキーとして保存。再生用のトランスコードと違い 1 フレームのみのデコードなので Pi 5 でも軽い（避けるべきは常時トランスコードであってこれではない）。同時生成は 2 並列・15 秒タイムアウトで制限。ffmpeg が無い環境では 501 を返し、フロントはアイコン表示にフォールバックする。
 
 **テキスト**
 
@@ -277,5 +280,5 @@ sudo tailscale up
 
 ### 10.4 新規に必要なもの / 避けるもの（まとめ）
 
-- **必要**: Range 対応つき inline 配信エンドポイント、`mime-types`、（テキスト用）ハイライトライブラリ、（任意）HEIC/サムネ用 `sharp`。
+- **必要**: Range 対応つき inline 配信エンドポイント、`mime-types`、（テキスト用）ハイライトライブラリ、（動画サムネイル用）システム ffmpeg、（任意）HEIC/サムネ用 `sharp`。
 - **避ける**: Pi 上での動画トランスコード（重すぎる）。
