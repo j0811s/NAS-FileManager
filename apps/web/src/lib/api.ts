@@ -63,6 +63,10 @@ export const api = {
     return `/api/preview?path=${encodeURIComponent(path)}`;
   },
 
+  thumbnailUrl(path: string): string {
+    return `/api/thumbnail?path=${encodeURIComponent(path)}`;
+  },
+
   async login(password: string): Promise<void> {
     await request("/api/auth/login", {
       method: "POST",

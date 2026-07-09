@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
 import { classifyPreview } from "@nas-fm/shared";
-import { File, Film, Folder, Image as ImageIcon } from "lucide-react";
+import { File, Film, Folder, Image as ImageIcon, Play } from "lucide-react";
 import { api } from "@/lib/api";
 import { RowActions } from "./RowActions";
 
 function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
   const [failed, setFailed] = useState(false);
   const [visible, setVisible] = useState(false);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const kind = classifyPreview(name);
 
+  // 可視範囲に入るまでサムネイルのリクエストを遅延し、生成リクエストがサーバに殺到しないようにする
   useEffect(() => {
     if (kind !== "video" || visible) return;
-    const el = videoContainerRef.current;
+    const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
@@ -41,20 +42,22 @@ function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
   }
   if (kind === "video" && !failed) {
     return (
-      <div ref={videoContainerRef} className="flex h-full w-full items-center justify-center">
+      <div ref={containerRef} className="relative flex h-full w-full items-center justify-center">
         {visible ? (
-          <video
-            src={`${api.previewUrl(relPath)}#t=1`}
-            preload="metadata"
-            muted
-            playsInline
-            className="pointer-events-none h-full w-full object-cover"
-            onError={() => setFailed(true)}
-            onLoadedMetadata={(e) => {
-              // 音声のみの .ogg など映像トラックが無いと真っ黒なカードになるため
-              if (e.currentTarget.videoWidth === 0) setFailed(true);
-            }}
-          />
+          <>
+            <img
+              src={api.thumbnailUrl(relPath)}
+              alt={name}
+              loading="lazy"
+              className="h-full w-full object-cover"
+              onError={() => setFailed(true)}
+            />
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span className="rounded-full bg-background/70 p-1.5">
+                <Play size={16} className="fill-current text-foreground" />
+              </span>
+            </span>
+          </>
         ) : (
           <Film size={40} className="text-muted-foreground" />
         )}
