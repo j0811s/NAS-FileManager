@@ -1,3 +1,4 @@
+import path from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import type { ApiError } from "@nas-fm/shared";
@@ -6,8 +7,23 @@ import { AppError, statusOf } from "./lib/errors";
 import { createAuthRoutes } from "./features/auth/auth.routes";
 import { requireAuth } from "./features/auth/auth.middleware";
 import { createFilesRoutes } from "./features/files/files.routes";
+import { createThumbnailsRoutes } from "./features/thumbnails/thumbnails.routes";
+import {
+  createThumbnailService,
+  type FfmpegRunner,
+} from "./features/thumbnails/thumbnails.service";
 
-export function createApp(root: string, authConfig: AuthConfig, staticDir?: string): Hono {
+export interface ThumbnailOptions {
+  cacheDir: string;
+  runFfmpeg: FfmpegRunner | null;
+}
+
+export function createApp(
+  root: string,
+  authConfig: AuthConfig,
+  staticDir?: string,
+  thumbnails?: ThumbnailOptions,
+): Hono {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ status: "ok" }));
@@ -26,6 +42,15 @@ export function createApp(root: string, authConfig: AuthConfig, staticDir?: stri
   });
 
   app.route("/api", createFilesRoutes(root));
+
+  // thumbnails 未指定（テスト等）は「ffmpeg 無し」として動かす。
+  // runFfmpeg が null の間はキャッシュへの書き込みが発生しないため、cacheDir のデフォルト値が使われることはない。
+  const thumbnailService = createThumbnailService({
+    root,
+    cacheDir: thumbnails?.cacheDir ?? path.join(root, ".thumb-cache"),
+    runFfmpeg: thumbnails?.runFfmpeg ?? null,
+  });
+  app.route("/api", createThumbnailsRoutes(thumbnailService));
 
   // web のビルド成果物を配信する（本番のみ。staticDir が無ければ静的配信自体を行わない）。
   // /health・/api/* はここより前に登録済みのハンドラで終端するため、この後段には落ちてこない。
