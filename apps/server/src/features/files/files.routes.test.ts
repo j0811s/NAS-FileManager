@@ -1,7 +1,11 @@
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import AdmZip from "adm-zip";
 import type { ApiError, ListResponse } from "@nas-fm/shared";
 import { createApp } from "../../app";
 import type { AuthConfig } from "../../lib/auth-config";
@@ -129,11 +133,27 @@ describe("GET /api/download", () => {
     expect(await res.text()).toBe("hello");
   });
 
-  it("ディレクトリ指定は 400", async () => {
+  it("ディレクトリ指定は zip としてストリーミング返却する", async () => {
     await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub", "a.txt"), "hello");
     const app = createApp(root, authConfig);
     const res = await app.request("/api/download?path=sub", withAuth());
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/zip");
+    expect(res.headers.get("content-disposition")).toBe(
+      `attachment; filename*=UTF-8''${encodeURIComponent("sub.zip")}`,
+    );
+    const zipPath = path.join(root, "downloaded.zip");
+    await pipeline(Readable.fromWeb(res.body as never), createWriteStream(zipPath));
+    const zip = new AdmZip(zipPath);
+    expect(zip.getEntries().map((e) => e.entryName)).toEqual(["a.txt"]);
+  });
+
+  it("未認証は 401（フォルダ指定でも変わらない）", async () => {
+    await mkdir(path.join(root, "sub"));
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/download?path=sub");
+    expect(res.status).toBe(401);
   });
 });
 

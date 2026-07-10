@@ -8,10 +8,12 @@ import { AppError } from "../../lib/errors";
 import { previewContentType } from "../../lib/preview-mime";
 import { parseRange } from "../../lib/range";
 import {
+  createFolderZipStream,
   listDir,
   makeDir,
   removePath,
   renamePath,
+  resolveDownloadEntry,
   statForDownload,
   uploadFile,
 } from "./files.service";
@@ -59,11 +61,19 @@ export function createFilesRoutes(root: string): Hono {
 
   app.get("/download", async (c) => {
     const rel = requirePath(c.req.query("path"));
-    const { abs, size, name } = await statForDownload(root, rel);
+    const target = await resolveDownloadEntry(root, rel);
+
+    if (target.kind === "dir") {
+      const archive = createFolderZipStream(target.abs);
+      c.header("Content-Type", "application/zip");
+      c.header("Content-Disposition", contentDisposition(`${target.name}.zip`));
+      return c.body(Readable.toWeb(archive) as unknown as ReadableStream);
+    }
+
     c.header("Content-Type", "application/octet-stream");
-    c.header("Content-Length", String(size));
-    c.header("Content-Disposition", contentDisposition(name));
-    return c.body(Readable.toWeb(createReadStream(abs)) as unknown as ReadableStream);
+    c.header("Content-Length", String(target.size));
+    c.header("Content-Disposition", contentDisposition(target.name));
+    return c.body(Readable.toWeb(createReadStream(target.abs)) as unknown as ReadableStream);
   });
 
   app.get("/preview", async (c) => {
