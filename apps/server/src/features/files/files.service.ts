@@ -157,22 +157,17 @@ async function walkAndAppend(archive: Archiver, absDir: string, zipPrefix: strin
 /** フォルダ配下を無圧縮zipとしてストリーミング生成する。走査は非同期でバックグラウンド実行し、Readable を即座に返す。 */
 export function createFolderZipStream(absDir: string): Archiver {
   const archive = new ZipArchive({ store: true });
-  // 走査後に消えたファイル等（ENOENT）は無視して続行。それ以外は fatal として扱う。
   const handleError = (err: unknown) => {
-    const errObj = err as NodeJS.ErrnoException;
-    if (errObj.code !== "ENOENT") {
-      archive.destroy(errObj);
+    // 走査後に消えたファイル等（ENOENT）は無視して続行。それ以外は fatal として扱う。
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      archive.destroy(err as Error);
     }
   };
   archive.on("warning", handleError);
   archive.on("error", handleError);
   void walkAndAppend(archive, absDir, "").then(
-    () => {
-      void archive.finalize();
-    },
-    (err) => {
-      archive.destroy(err as Error);
-    },
+    () => archive.finalize(),
+    (err) => archive.destroy(err as Error),
   );
   return archive;
 }
