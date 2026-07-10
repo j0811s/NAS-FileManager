@@ -280,9 +280,12 @@ describe("createFolderZipStream", () => {
     await writeFile(path.join(dir, "gone.txt"), "gone");
     await writeFile(path.join(dir, "keep.txt"), "keep");
     const archive = createFolderZipStream(dir);
-    // ストリームの消費（読み取り）が始まる前に削除する。archiver は
-    // archive.file() 呼び出し時点では stat/read しない（消費時に遅延実行される）ため、
-    // ここで削除すれば「走査後に消えたファイル」を確実に再現できる。
+    // ストリームの消費が始まる前に削除する。archiver は archive.file() 呼び出し時点で
+    // 内部の stat キューに投入され、ストリームの消費有無に関わらず lstat が開始される
+    // （消費時まで遅延されるわけではない）。ただし fs.readdir の完了 → ループでの
+    // archive.file() 呼び出し → stat キュー投入、という経路を経る分だけ、このテストの
+    // fs.rm() 呼び出しより hop が多いため、実運用上 rm() が確実に先に完了し「走査後に
+    // 消えたファイル」を再現できる。
     await rm(path.join(dir, "gone.txt"));
     const zipPath = path.join(root, "out5.zip");
     const names = await zipToEntries(archive, zipPath);
