@@ -274,19 +274,18 @@ describe("createFolderZipStream", () => {
     expect(names).toEqual(["real.txt"]);
   });
 
-  it("走査中に消えたファイルはスキップし、残りは正常に含まれる", async () => {
+  it("archiver の ENOENT 警告は無視して継続し、他のファイルは正常に含まれる", async () => {
     const dir = path.join(root, "folder");
     await mkdir(dir);
-    await writeFile(path.join(dir, "gone.txt"), "gone");
     await writeFile(path.join(dir, "keep.txt"), "keep");
     const archive = createFolderZipStream(dir);
-    // ストリームの消費が始まる前に削除する。archiver は archive.file() 呼び出し時点で
-    // 内部の stat キューに投入され、ストリームの消費有無に関わらず lstat が開始される
-    // （消費時まで遅延されるわけではない）。ただし fs.readdir の完了 → ループでの
-    // archive.file() 呼び出し → stat キュー投入、という経路を経る分だけ、このテストの
-    // fs.rm() 呼び出しより hop が多いため、実運用上 rm() が確実に先に完了し「走査後に
-    // 消えたファイル」を再現できる。
-    await rm(path.join(dir, "gone.txt"));
+    // 実際のファイル削除タイミングに依存するテストは archiver 内部の stat キューの
+    // 処理タイミング（Node の I/O スレッドプールのスケジューリング）に左右され本質的に
+    // 決定的にできないため、存在しないパスを直接 archive.file() に渡すことで
+    // ENOENT 警告の発生を確定的に再現する。この呼び出しは同期的に実行されるため、
+    // walkAndAppend 内部の fs.readdir（実 I/O）が解決するより確実に先に完了し、
+    // finalize() との競合は起きない。
+    archive.file(path.join(dir, "definitely-missing.txt"), { name: "definitely-missing.txt" });
     const zipPath = path.join(root, "out5.zip");
     const names = await zipToEntries(archive, zipPath);
     expect(names).toEqual(["keep.txt"]);
