@@ -120,3 +120,21 @@ export async function statForDownload(
   }
   return { abs, size: st.size, name: path.basename(abs) };
 }
+
+export async function resolveDownloadEntry(
+  root: string,
+  relPath: string,
+): Promise<
+  | { abs: string; name: string; kind: "file"; size: number }
+  | { abs: string; name: string; kind: "dir" }
+> {
+  const abs = safeResolve(root, relPath);
+  const st = await fs.stat(abs).catch(() => null);
+  if (!st) {
+    throw new AppError("NOT_FOUND", `not found: ${relPath}`);
+  }
+  if (st.isDirectory()) {
+    return { abs, name: path.basename(abs), kind: "dir" };
+  }
+  return { abs, name: path.basename(abs), kind: "file", size: st.size };
+}

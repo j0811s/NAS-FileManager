@@ -4,7 +4,15 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppError } from "../../lib/errors";
-import { listDir, makeDir, removePath, renamePath, statForDownload, uploadFile } from "./files.service";
+import {
+  listDir,
+  makeDir,
+  removePath,
+  renamePath,
+  resolveDownloadEntry,
+  statForDownload,
+  uploadFile,
+} from "./files.service";
 
 let root: string;
 
@@ -183,5 +191,32 @@ describe("statForDownload", () => {
   it("ディレクトリは IS_A_DIRECTORY", async () => {
     await mkdir(path.join(root, "sub"));
     await expectAppError(statForDownload(root, "sub"), "IS_A_DIRECTORY");
+  });
+});
+
+describe("resolveDownloadEntry", () => {
+  it("ファイルは kind: file とサイズを返す", async () => {
+    await writeFile(path.join(root, "dl.txt"), "hello");
+    const info = await resolveDownloadEntry(root, "dl.txt");
+    expect(info).toEqual({
+      abs: path.join(root, "dl.txt"),
+      name: "dl.txt",
+      kind: "file",
+      size: 5,
+    });
+  });
+
+  it("ディレクトリは kind: dir を返す（size は含まない）", async () => {
+    await mkdir(path.join(root, "sub"));
+    const info = await resolveDownloadEntry(root, "sub");
+    expect(info).toEqual({ abs: path.join(root, "sub"), name: "sub", kind: "dir" });
+  });
+
+  it("存在しないパスは NOT_FOUND", async () => {
+    await expectAppError(resolveDownloadEntry(root, "missing"), "NOT_FOUND");
+  });
+
+  it("パストラバーサルは PATH_TRAVERSAL", async () => {
+    await expectAppError(resolveDownloadEntry(root, "../evil"), "PATH_TRAVERSAL");
   });
 });
