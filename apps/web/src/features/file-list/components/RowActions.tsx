@@ -39,14 +39,12 @@ export function RowActions({
             プレビュー
           </DropdownMenuItem>
         )}
-        {entry.type === "file" && (
-          <DropdownMenuItem asChild>
-            <a href={api.downloadUrl(rel)} download>
-              <Download size={16} className="mr-2" />
-              ダウンロード
-            </a>
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem asChild>
+          <a href={api.downloadUrl(rel)} download>
+            <Download size={16} className="mr-2" />
+            ダウンロード
+          </a>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onRename(entry)}>
           <Pencil size={16} className="mr-2" />
           名前を変更

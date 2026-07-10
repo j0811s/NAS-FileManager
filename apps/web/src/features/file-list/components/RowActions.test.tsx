@@ -26,7 +26,7 @@ describe("RowActions", () => {
     expect(link).toHaveAttribute("download");
   });
 
-  it("ディレクトリにはダウンロードリンクを出さない", async () => {
+  it("ディレクトリにもダウンロードリンク（zip、正しい href）を出す", async () => {
     const dir: FileEntry = { name: "sub", size: 0, mtime: 0, type: "dir" };
     render(
       <RowActions
@@ -39,8 +39,9 @@ describe("RowActions", () => {
       />,
     );
     await userEvent.click(screen.getByLabelText("操作メニュー"));
-    expect(await screen.findByRole("menuitem", { name: /名前を変更/ })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /ダウンロード/ })).toBeNull();
+    const link = await screen.findByRole("menuitem", { name: /ダウンロード/ });
+    expect(link).toHaveAttribute("href", `/api/download?path=${encodeURIComponent("sub")}`);
+    expect(link).toHaveAttribute("download");
   });
 
   it("ファイルの操作メニューから onPreview を呼ぶ", async () => {
