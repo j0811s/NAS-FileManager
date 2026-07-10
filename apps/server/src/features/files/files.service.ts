@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { ZipArchive, type Archiver } from "archiver";
 import type { FileEntry } from "@nas-fm/shared";
 import { AppError, fromFsError } from "../../lib/errors";
 import { safeResolve } from "../../lib/safe-resolve";
@@ -137,4 +138,41 @@ export async function resolveDownloadEntry(
     return { abs, name: path.basename(abs), kind: "dir" };
   }
   return { abs, name: path.basename(abs), kind: "file", size: st.size };
+}
+
+async function walkAndAppend(archive: Archiver, absDir: string, zipPrefix: string): Promise<void> {
+  const entries = await fs.readdir(absDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    const absPath = path.join(absDir, entry.name);
+    const zipPath = zipPrefix ? `${zipPrefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      await walkAndAppend(archive, absPath, zipPath);
+    } else if (entry.isFile()) {
+      archive.file(absPath, { name: zipPath });
+    }
+  }
+}
+
+/** フォルダ配下を無圧縮zipとしてストリーミング生成する。走査は非同期でバックグラウンド実行し、Readable を即座に返す。 */
+export function createFolderZipStream(absDir: string): Archiver {
+  const archive = new ZipArchive({ store: true });
+  // 走査後に消えたファイル等（ENOENT）は無視して続行。それ以外は fatal として扱う。
+  const handleError = (err: unknown) => {
+    const errObj = err as NodeJS.ErrnoException;
+    if (errObj.code !== "ENOENT") {
+      archive.destroy(errObj);
+    }
+  };
+  archive.on("warning", handleError);
+  archive.on("error", handleError);
+  void walkAndAppend(archive, absDir, "").then(
+    () => {
+      void archive.finalize();
+    },
+    (err) => {
+      archive.destroy(err as Error);
+    },
+  );
+  return archive;
 }

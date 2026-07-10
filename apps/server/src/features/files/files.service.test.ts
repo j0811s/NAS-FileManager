@@ -1,10 +1,14 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import AdmZip from "adm-zip";
 import { AppError } from "../../lib/errors";
 import {
+  createFolderZipStream,
   listDir,
   makeDir,
   removePath,
@@ -218,5 +222,70 @@ describe("resolveDownloadEntry", () => {
 
   it("パストラバーサルは PATH_TRAVERSAL", async () => {
     await expectAppError(resolveDownloadEntry(root, "../evil"), "PATH_TRAVERSAL");
+  });
+});
+
+async function zipToEntries(archive: NodeJS.ReadableStream, outPath: string): Promise<string[]> {
+  await pipeline(archive, createWriteStream(outPath));
+  const zip = new AdmZip(outPath);
+  return zip.getEntries().map((e) => e.entryName);
+}
+
+describe("createFolderZipStream", () => {
+  it("フラットなフォルダの中身をzipエントリとして含む", async () => {
+    const dir = path.join(root, "folder");
+    await mkdir(dir);
+    await writeFile(path.join(dir, "a.txt"), "a");
+    await writeFile(path.join(dir, "b.txt"), "b");
+    const archive = createFolderZipStream(dir);
+    const zipPath = path.join(root, "out1.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names.sort()).toEqual(["a.txt", "b.txt"]);
+  });
+
+  it("ネストしたフォルダ構造をzip内のパス階層に反映する", async () => {
+    const dir = path.join(root, "folder");
+    await mkdir(path.join(dir, "sub"), { recursive: true });
+    await writeFile(path.join(dir, "top.txt"), "top");
+    await writeFile(path.join(dir, "sub", "nested.txt"), "nested");
+    const archive = createFolderZipStream(dir);
+    const zipPath = path.join(root, "out2.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names.sort()).toEqual(["sub/nested.txt", "top.txt"]);
+  });
+
+  it("空フォルダは有効な空zipになる", async () => {
+    const dir = path.join(root, "empty");
+    await mkdir(dir);
+    const archive = createFolderZipStream(dir);
+    const zipPath = path.join(root, "out3.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names).toEqual([]);
+  });
+
+  it("シンボリックリンクはzipに含まれない", async () => {
+    const dir = path.join(root, "folder");
+    await mkdir(dir);
+    await writeFile(path.join(dir, "real.txt"), "real");
+    await symlink(path.join(dir, "real.txt"), path.join(dir, "link.txt"));
+    const archive = createFolderZipStream(dir);
+    const zipPath = path.join(root, "out4.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names).toEqual(["real.txt"]);
+  });
+
+  it("走査中に消えたファイルはスキップし、残りは正常に含まれる", async () => {
+    const dir = path.join(root, "folder");
+    await mkdir(dir);
+    await writeFile(path.join(dir, "gone.txt"), "gone");
+    await writeFile(path.join(dir, "keep.txt"), "keep");
+    const archive = createFolderZipStream(dir);
+    // ストリームの消費（読み取り）が始まる前に削除する。archiver は
+    // archive.file() 呼び出し時点では stat/read しない（消費時に遅延実行される）ため、
+    // ここで削除すれば「走査後に消えたファイル」を確実に再現できる。
+    await rm(path.join(dir, "gone.txt"));
+    const zipPath = path.join(root, "out5.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names).toEqual(["keep.txt"]);
   });
 });

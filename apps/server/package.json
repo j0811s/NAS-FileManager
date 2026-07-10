@@ -13,12 +13,16 @@
   "dependencies": {
     "@hono/node-server": "2.0.6",
     "@nas-fm/shared": "*",
+    "archiver": "8.0.0",
     "hono": "4.12.27",
     "mime-types": "3.0.2"
   },
   "devDependencies": {
+    "@types/adm-zip": "0.5.8",
+    "@types/archiver": "8.0.0",
     "@types/mime-types": "3.0.1",
     "@types/node": "26.0.1",
+    "adm-zip": "0.5.18",
     "esbuild": "0.28.1",
     "tsx": "4.22.4",
     "vitest": "4.1.9"
