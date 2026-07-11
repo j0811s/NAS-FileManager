@@ -228,6 +228,45 @@ describe("createThumbnailService.getThumbnail", () => {
     await expect(svc.getThumbnail("broken.jpg")).rejects.toMatchObject({ code: "INVALID_REQUEST" });
     expect(await readdir(cacheDir)).toEqual([]);
   });
+
+  it("variant='preview' を動画に指定すると INVALID_REQUEST", async () => {
+    await writeFile(path.join(root, "mov.mp4"), "data");
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: okRunner() });
+    await expect(svc.getThumbnail("mov.mp4", "preview")).rejects.toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+  });
+
+  it("variant='preview' は thumb と別のキャッシュファイルになり、より大きいサイズで生成される", async () => {
+    await sharp({
+      create: { width: 3000, height: 2000, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "big.jpg"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const thumb = await svc.getThumbnail("big.jpg", "thumb");
+    const preview = await svc.getThumbnail("big.jpg", "preview");
+    expect(preview).not.toBe(thumb);
+    expect(preview.endsWith("-preview.jpg")).toBe(true);
+    const thumbMeta = await sharp(thumb).metadata();
+    const previewMeta = await sharp(preview).metadata();
+    expect(thumbMeta.width).toBeLessThanOrEqual(480);
+    expect(previewMeta.width).toBeGreaterThan(480);
+    expect(previewMeta.width).toBeLessThanOrEqual(1920);
+  });
+
+  it("variant省略時は従来どおり thumb(480px) として生成される", async () => {
+    await sharp({
+      create: { width: 1000, height: 600, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "default-variant.jpg"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const result = await svc.getThumbnail("default-variant.jpg");
+    expect(result.endsWith("-preview.jpg")).toBe(false);
+    const meta = await sharp(result).metadata();
+    expect(meta.width).toBeLessThanOrEqual(480);
+  });
 });
 
 describe("createProcessRunner", () => {

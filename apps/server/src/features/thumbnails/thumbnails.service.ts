@@ -10,6 +10,14 @@ import { safeResolve } from "../../lib/safe-resolve";
 /** 入力動画 absIn からサムネイル JPEG を absOut に生成する。失敗時は throw。 */
 export type FfmpegRunner = (absIn: string, absOut: string) => Promise<void>;
 
+/** "thumb" は一覧用(480px)、"preview" はモーダル用の大きいサイズ(1920px) */
+export type ThumbnailVariant = "thumb" | "preview";
+
+const VARIANT_SPEC: Record<ThumbnailVariant, { maxSize: number; quality: number }> = {
+  thumb: { maxSize: 480, quality: 80 },
+  preview: { maxSize: 1920, quality: 85 },
+};
+
 export interface ThumbnailServiceOptions {
   root: string;
   cacheDir: string;
@@ -18,15 +26,15 @@ export interface ThumbnailServiceOptions {
 }
 
 export interface ThumbnailService {
-  /** キャッシュ済みサムネイル JPEG の絶対パスを返す。未生成なら生成してから返す。 */
-  getThumbnail(relPath: string): Promise<string>;
+  /** キャッシュ済みサムネイル JPEG の絶対パスを返す。未生成なら生成してから返す。variant省略時は "thumb"。 */
+  getThumbnail(relPath: string, variant?: ThumbnailVariant): Promise<string>;
 }
 
 export function createThumbnailService(opts: ThumbnailServiceOptions): ThumbnailService {
   const { root, cacheDir, runFfmpeg } = opts;
-  /** キー→生成中 Promise。同一ファイルへの並行リクエストで ffmpeg を重複起動しない */
+  /** キー→生成中 Promise。同一ファイル・同一variantへの並行リクエストで生成を重複起動しない */
   const inflight = new Map<string, Promise<string>>();
-  /** Pi 5 (4GB) 保護のため ffmpeg の同時実行数を制限する */
+  /** Pi 5 (4GB) 保護のため生成の同時実行数を制限する */
   const MAX_CONCURRENT = 2;
   let running = 0;
   const waiters: Array<() => void> = [];
@@ -49,6 +57,7 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
     abs: string,
     cachePath: string,
     kind: "video" | "image",
+    variant: ThumbnailVariant,
   ): Promise<string> {
     if (kind === "video" && !runFfmpeg) {
       throw new AppError("UNSUPPORTED", "ffmpeg is not available");
@@ -61,7 +70,7 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
       if (kind === "video") {
         await runFfmpeg!(abs, tmp);
       } else {
-        await generateImageThumbnail(abs, tmp);
+        await generateImageThumbnail(abs, tmp, variant);
       }
       await fs.rename(tmp, cachePath);
       return cachePath;
@@ -72,13 +81,16 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
   }
 
   return {
-    async getThumbnail(relPath: string): Promise<string> {
+    async getThumbnail(relPath: string, variant: ThumbnailVariant = "thumb"): Promise<string> {
       const abs = safeResolve(root, relPath);
       const kind = classifyPreview(path.basename(abs));
       const ext = path.extname(abs).toLowerCase();
       const supported = kind === "video" || (kind === "image" && ext !== ".svg");
       if (!supported) {
         throw new AppError("INVALID_REQUEST", "thumbnail is not supported for this file type");
+      }
+      if (variant === "preview" && kind === "video") {
+        throw new AppError("INVALID_REQUEST", "preview size is not supported for video");
       }
       const mediaKind = kind as "video" | "image";
       const st = await fs.stat(abs).catch(() => null);
@@ -92,28 +104,37 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
       const key = createHash("sha256")
         .update(`${relPath}|${Math.trunc(st.mtimeMs)}|${st.size}`)
         .digest("hex");
-      const cachePath = path.join(cacheDir, `${key}.jpg`);
+      const suffix = variant === "preview" ? "-preview" : "";
+      const cachePath = path.join(cacheDir, `${key}${suffix}.jpg`);
       const cached = await fs.stat(cachePath).catch(() => null);
       if (cached) {
         return cachePath;
       }
-      const existing = inflight.get(key);
+      const inflightKey = `${key}${suffix}`;
+      const existing = inflight.get(inflightKey);
       if (existing) {
         return existing;
       }
-      const promise = generate(abs, cachePath, mediaKind).finally(() => inflight.delete(key));
-      inflight.set(key, promise);
+      const promise = generate(abs, cachePath, mediaKind, variant).finally(() =>
+        inflight.delete(inflightKey),
+      );
+      inflight.set(inflightKey, promise);
       return promise;
     },
   };
 }
 
-async function generateImageThumbnail(abs: string, absOut: string): Promise<void> {
+async function generateImageThumbnail(
+  abs: string,
+  absOut: string,
+  variant: ThumbnailVariant,
+): Promise<void> {
+  const { maxSize, quality } = VARIANT_SPEC[variant];
   try {
     await sharp(abs)
       .rotate()
-      .resize(480, 480, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 80 })
+      .resize(maxSize, maxSize, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality })
       .toFile(absOut);
   } catch {
     throw new AppError("INVALID_REQUEST", "failed to generate thumbnail");
