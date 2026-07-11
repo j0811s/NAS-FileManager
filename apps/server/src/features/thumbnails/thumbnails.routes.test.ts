@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiError } from "@nas-fm/shared";
+import sharp from "sharp";
 import { createApp, type ThumbnailOptions } from "../../app";
 import type { AuthConfig } from "../../lib/auth-config";
 import { hashPassword } from "../../lib/password";
@@ -94,5 +95,34 @@ describe("GET /api/thumbnail", () => {
     expect(res.status).toBe(501);
     const body = (await res.json()) as ApiError;
     expect(body.error.code).toBe("UNSUPPORTED");
+  });
+
+  it("size=preview は大きいサイズのサムネイルを返す", async () => {
+    await sharp({
+      create: { width: 3000, height: 2000, channels: 3, background: { r: 9, g: 9, b: 9 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "big.jpg"));
+    const app = createApp(root, authConfig, undefined, thumbOptions());
+    const res = await app.request("/api/thumbnail?path=big.jpg&size=preview", withAuth());
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const meta = await sharp(buf).metadata();
+    expect(meta.width).toBeGreaterThan(480);
+  });
+
+  it("size が不正な値だと 400 + INVALID_REQUEST", async () => {
+    // 破損画像だとsize検証を実装する前から(生成失敗経由で)偶然400になってしまうため、
+    // 有効な画像を使い「sizeバリデーションによって」400になることを検証する
+    await sharp({
+      create: { width: 200, height: 200, channels: 3, background: { r: 1, g: 1, b: 1 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "a.jpg"));
+    const app = createApp(root, authConfig, undefined, thumbOptions());
+    const res = await app.request("/api/thumbnail?path=a.jpg&size=huge", withAuth());
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("INVALID_REQUEST");
   });
 });
