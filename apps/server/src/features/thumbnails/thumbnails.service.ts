@@ -26,6 +26,8 @@ export interface ThumbnailServiceOptions {
   cacheDir: string;
   /** null は ffmpeg が使えない環境（getThumbnail は UNSUPPORTED を投げる） */
   runFfmpeg: FfmpegRunner | null;
+  /** 省略・null は heif-convert が使えない環境（.heic の getThumbnail は UNSUPPORTED を投げる） */
+  runHeifConvert?: HeifRunner | null;
 }
 
 export interface ThumbnailService {
@@ -34,7 +36,7 @@ export interface ThumbnailService {
 }
 
 export function createThumbnailService(opts: ThumbnailServiceOptions): ThumbnailService {
-  const { root, cacheDir, runFfmpeg } = opts;
+  const { root, cacheDir, runFfmpeg, runHeifConvert = null } = opts;
   /** キー→生成中 Promise。同一ファイル・同一variantへの並行リクエストで生成を重複起動しない */
   const inflight = new Map<string, Promise<string>>();
   /** Pi 5 (4GB) 保護のため生成の同時実行数を制限する */
@@ -65,13 +67,21 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
     if (kind === "video" && !runFfmpeg) {
       throw new AppError("UNSUPPORTED", "ffmpeg is not available");
     }
+    const isHeic = path.extname(abs).toLowerCase() === ".heic";
+    if (isHeic && !runHeifConvert) {
+      throw new AppError("UNSUPPORTED", "heif-convert is not available");
+    }
     await acquire();
     // 同一ファイルシステム内の rename でアトミックに配置するため、一時ファイルはキャッシュディレクトリ内に置く
     const tmp = `${cachePath}.tmp-${randomBytes(6).toString("hex")}`;
+    const heicTmp = `${cachePath}.heic-tmp-${randomBytes(6).toString("hex")}.jpg`;
     try {
       await fs.mkdir(cacheDir, { recursive: true });
       if (kind === "video") {
         await runFfmpeg!(abs, tmp);
+      } else if (isHeic) {
+        await runHeifConvert!(abs, heicTmp);
+        await generateImageThumbnail(heicTmp, tmp, variant);
       } else {
         await generateImageThumbnail(abs, tmp, variant);
       }
@@ -80,6 +90,9 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
     } finally {
       release();
       await fs.rm(tmp, { force: true }).catch(() => undefined);
+      if (isHeic) {
+        await fs.rm(heicTmp, { force: true }).catch(() => undefined);
+      }
     }
   }
 

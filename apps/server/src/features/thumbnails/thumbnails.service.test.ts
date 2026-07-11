@@ -273,6 +273,76 @@ describe("createThumbnailService.getThumbnail", () => {
     const meta = await sharp(result).metadata();
     expect(meta.width).toBeLessThanOrEqual(480);
   });
+
+  it(".heic は runHeifConvert が null（heif-convert 不在）のとき UNSUPPORTED", async () => {
+    await writeFile(path.join(root, "photo.heic"), "heic-bytes");
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null, runHeifConvert: null });
+    await expect(svc.getThumbnail("photo.heic")).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  });
+
+  it(".heic は runHeifConvert 省略時もUNSUPPORTED（デフォルトnull扱い）", async () => {
+    await writeFile(path.join(root, "photo2.heic"), "heic-bytes");
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    await expect(svc.getThumbnail("photo2.heic")).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  });
+
+  it(".heic は runHeifConvert の出力を sharp パイプラインに渡してJPEGサムネイルを生成する", async () => {
+    await writeFile(path.join(root, "photo.heic"), "fake-heic-bytes");
+    const heifRunner = vi.fn(async (_absIn: string, absOut: string) => {
+      await sharp({
+        create: { width: 800, height: 600, channels: 3, background: { r: 5, g: 6, b: 7 } },
+      })
+        .jpeg()
+        .toFile(absOut);
+    });
+    const svc = createThumbnailService({
+      root,
+      cacheDir,
+      runFfmpeg: null,
+      runHeifConvert: heifRunner,
+    });
+    const result = await svc.getThumbnail("photo.heic");
+    expect(heifRunner).toHaveBeenCalledTimes(1);
+    expect(heifRunner).toHaveBeenCalledWith(path.join(root, "photo.heic"), expect.stringContaining(".heic-tmp-"));
+    const meta = await sharp(result).metadata();
+    expect(meta.format).toBe("jpeg");
+    expect(meta.width).toBeLessThanOrEqual(480);
+  });
+
+  it(".heic 変換の一時ファイルは成功時にキャッシュディレクトリへ残らない", async () => {
+    await writeFile(path.join(root, "photo.heic"), "fake-heic-bytes");
+    const heifRunner = vi.fn(async (_absIn: string, absOut: string) => {
+      await sharp({
+        create: { width: 100, height: 100, channels: 3, background: { r: 0, g: 0, b: 0 } },
+      })
+        .jpeg()
+        .toFile(absOut);
+    });
+    const svc = createThumbnailService({
+      root,
+      cacheDir,
+      runFfmpeg: null,
+      runHeifConvert: heifRunner,
+    });
+    await svc.getThumbnail("photo.heic");
+    const files = await readdir(cacheDir);
+    expect(files.some((f) => f.includes(".heic-tmp-"))).toBe(false);
+  });
+
+  it(".heic 変換失敗時もキャッシュディレクトリに残骸を残さない", async () => {
+    await writeFile(path.join(root, "photo.heic"), "fake-heic-bytes");
+    const heifRunner = vi.fn(async () => {
+      throw new Error("heif-convert failed");
+    });
+    const svc = createThumbnailService({
+      root,
+      cacheDir,
+      runFfmpeg: null,
+      runHeifConvert: heifRunner,
+    });
+    await expect(svc.getThumbnail("photo.heic")).rejects.toThrow("heif-convert failed");
+    expect(await readdir(cacheDir)).toEqual([]);
+  });
 });
 
 describe("createProcessRunner", () => {
