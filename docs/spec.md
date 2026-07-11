@@ -265,6 +265,7 @@ sudo systemctl status nas-fm --no-pager
 - `--address 0.0.0.0`（Hono 側の listen 設定）で LAN の他デバイスからアクセス可
 - ポートは他サービス（OMV / 既存の 8080 等）と重複しないよう決める
 - 動画サムネイル生成に ffmpeg を使うため `sudo apt install ffmpeg` を実行しておく（無くても起動はするがサムネイルは 501 になり一覧はアイコン表示になる）
+- HEICプレビュー変換に `heif-convert`（`libheif-examples`）を使うため `sudo apt install libheif-examples` を実行しておく（無くても起動はするがHEICのサムネイル/プレビューは 501 になる。開発機(Mac)は `brew install libheif`）
 - 画像サムネイル生成に使う `sharp` はネイティブバインディング（`.node`）を含むため、`npm run build` の esbuild バンドルでは `--external:sharp` としてバンドル対象外にしている。`npm run package`（= `scripts/package-release.mjs`）が実行時に自動で **Raspberry Pi OS 64bit（linux/arm64/glibc）向けのビルド済み `sharp` を別途取得**し、`release/node_modules/` に同梱する。そのため `/opt/nas-fm` には `server.js` / `public/` に加えて **`node_modules/` も必ずコピーする**こと（`node_modules` を配置し忘れると `Error: Could not load the "sharp" module using the linux-arm64 runtime` で起動時にクラッシュする）
 
 ---
@@ -332,7 +333,7 @@ sudo tailscale up
 **画像**
 
 - 土台のみで `<img src={previewUrl}>` で表示可（jpg/png/webp/gif）。
-- 注意: **HEIC（iPhone 写真）**は多くのブラウザが非対応。対応するなら `sharp`（libheif）でサーバ変換が必要だが 4GB 機には重いため、初版は「HEIC は DL のみ」で割り切る。
+- **HEIC（iPhone 写真）**は多くのブラウザが非対応だが、サーバー側で `heif-convert`（`libheif-examples`）により JPEG に変換して配信する（詳細: `docs/superpowers/specs/2026-07-11-heic-preview-design.md`）。`heif-convert` が無い環境では他の非対応形式と同様 501 を返し DL のみに切り替わる。
 - 一覧サムネイルが欲しくなったら `sharp` で生成＋キャッシュ（拡張時）。
 
 **動画**
@@ -354,5 +355,5 @@ sudo tailscale up
 
 ### 10.4 新規に必要なもの / 避けるもの（まとめ）
 
-- **必要**: Range 対応つき inline 配信エンドポイント、`mime-types`、（テキスト用）ハイライトライブラリ、（動画サムネイル用）システム ffmpeg、（任意）HEIC/サムネ用 `sharp`。
+- **必要**: Range 対応つき inline 配信エンドポイント、`mime-types`、（テキスト用）ハイライトライブラリ、（動画サムネイル用）システム ffmpeg、サムネイル生成用 `sharp`、（HEICプレビュー用）システム `heif-convert`（`libheif-examples`）。
 - **避ける**: Pi 上での動画トランスコード（重すぎる）。
