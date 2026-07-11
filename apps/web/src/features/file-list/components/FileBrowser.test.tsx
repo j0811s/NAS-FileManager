@@ -141,4 +141,63 @@ describe("FileBrowser", () => {
     await userEvent.click(await screen.findByRole("menuitemradio", { name: "サイズ" }));
     await waitFor(() => expect(names()).toEqual(["small.bin", "big.bin"]));
   });
+
+  it("ファイルをクリックしてモーダルを開き、次のファイルボタンで次のファイルに切り替わる", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [
+        { name: "docs", size: 0, mtime: 0, type: "dir" },
+        { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+        { name: "b.jpg", size: 1, mtime: 0, type: "file" },
+      ],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText("a.jpg"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("img", { name: "a.jpg" })).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "次のファイル" }));
+    expect(within(dialog).getByRole("img", { name: "b.jpg" })).toBeInTheDocument();
+  });
+
+  it("先頭では前のファイルボタンがdisabled、末尾では次のファイルボタンがdisabled", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [
+        { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+        { name: "b.jpg", size: 1, mtime: 0, type: "file" },
+      ],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText("a.jpg"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "前のファイル" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "次のファイル" })).not.toBeDisabled();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "次のファイル" }));
+    expect(within(dialog).getByRole("button", { name: "次のファイル" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "前のファイル" })).not.toBeDisabled();
+  });
+
+  it("ディレクトリはナビゲーション対象から除外される", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [
+        { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+        { name: "docs", size: 0, mtime: 0, type: "dir" },
+        { name: "z.jpg", size: 1, mtime: 0, type: "file" },
+      ],
+    });
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText("a.jpg"));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "次のファイル" }));
+    expect(within(dialog).getByRole("img", { name: "z.jpg" })).toBeInTheDocument();
+  });
 });

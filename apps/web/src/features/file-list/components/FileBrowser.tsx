@@ -57,6 +57,19 @@ export function FileBrowser() {
   }
   const rel = (name: string) => (path ? `${path}/${name}` : name);
 
+  const previewableEntries = useMemo(
+    () => sorted.filter((entry) => entry.type !== "dir"),
+    [sorted],
+  );
+  const previewIndex = previewTarget
+    ? previewableEntries.findIndex((entry) => entry.name === previewTarget.name)
+    : -1;
+
+  function navigatePreview(delta: number) {
+    const next = previewableEntries[previewIndex + delta];
+    if (next) setPreviewTarget(next);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -170,6 +183,16 @@ export function FileBrowser() {
         onOpenChange={(v) => !v && setPreviewTarget(null)}
         name={previewTarget?.name ?? ""}
         path={previewTarget ? rel(previewTarget.name) : ""}
+        nav={{
+          hasPrev: previewIndex > 0,
+          hasNext: previewIndex >= 0 && previewIndex < previewableEntries.length - 1,
+          onPrev: () => navigatePreview(-1),
+          onNext: () => navigatePreview(1),
+          position:
+            previewIndex >= 0
+              ? { index: previewIndex + 1, total: previewableEntries.length }
+              : null,
+        }}
       />
     </div>
   );
