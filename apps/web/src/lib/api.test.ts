@@ -53,6 +53,18 @@ describe("api.previewUrl", () => {
   });
 });
 
+describe("api.thumbnailUrl", () => {
+  it("variant省略時はsizeパラメータを付けない", () => {
+    expect(api.thumbnailUrl("docs/a.mp4")).toBe(`/api/thumbnail?path=${encodeURIComponent("docs/a.mp4")}`);
+  });
+
+  it("variant='preview'指定時はsize=previewを付ける", () => {
+    expect(api.thumbnailUrl("docs/a.heic", "preview")).toBe(
+      `/api/thumbnail?path=${encodeURIComponent("docs/a.heic")}&size=preview`,
+    );
+  });
+});
+
 describe("api.login / logout / me", () => {
   it("login は password を JSON で POST する", async () => {
     mockFetch(200, { ok: true });

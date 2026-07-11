@@ -63,8 +63,9 @@ export const api = {
     return `/api/preview?path=${encodeURIComponent(path)}`;
   },
 
-  thumbnailUrl(path: string): string {
-    return `/api/thumbnail?path=${encodeURIComponent(path)}`;
+  thumbnailUrl(path: string, variant?: "preview"): string {
+    const size = variant ? `&size=${variant}` : "";
+    return `/api/thumbnail?path=${encodeURIComponent(path)}${size}`;
   },
 
   async login(password: string): Promise<void> {
