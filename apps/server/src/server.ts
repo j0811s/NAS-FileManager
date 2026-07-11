@@ -5,7 +5,12 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app";
 import { resolveAuthConfig } from "./lib/auth-config";
 import { resolveNasRoot, resolveThumbCacheDir } from "./lib/config";
-import { detectFfmpeg, ffmpegRunner } from "./features/thumbnails/thumbnails.service";
+import {
+  detectFfmpeg,
+  detectHeifConvert,
+  ffmpegRunner,
+  heifConvertRunner,
+} from "./features/thumbnails/thumbnails.service";
 
 const root = resolveNasRoot();
 const authConfig = resolveAuthConfig();
@@ -21,10 +26,17 @@ const ffmpegAvailable = await detectFfmpeg();
 if (!ffmpegAvailable) {
   console.warn("ffmpeg not found: video thumbnails are disabled (/api/thumbnail returns 501)");
 }
+const heifConvertAvailable = await detectHeifConvert();
+if (!heifConvertAvailable) {
+  console.warn(
+    "heif-convert not found: HEIC preview is disabled (/api/thumbnail returns 501 for .heic)",
+  );
+}
 
 const app = createApp(root, authConfig, staticDir, {
   cacheDir: resolveThumbCacheDir(),
   runFfmpeg: ffmpegAvailable ? ffmpegRunner : null,
+  runHeifConvert: heifConvertAvailable ? heifConvertRunner : null,
 });
 const port = Number(process.env.PORT) || 8080;
 

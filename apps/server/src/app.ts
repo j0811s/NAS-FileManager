@@ -11,11 +11,13 @@ import { createThumbnailsRoutes } from "./features/thumbnails/thumbnails.routes"
 import {
   createThumbnailService,
   type FfmpegRunner,
+  type HeifRunner,
 } from "./features/thumbnails/thumbnails.service";
 
 export interface ThumbnailOptions {
   cacheDir: string;
   runFfmpeg: FfmpegRunner | null;
+  runHeifConvert?: HeifRunner | null;
 }
 
 export function createApp(
@@ -49,6 +51,7 @@ export function createApp(
     root,
     cacheDir: thumbnails?.cacheDir ?? path.join(root, ".thumb-cache"),
     runFfmpeg: thumbnails?.runFfmpeg ?? null,
+    runHeifConvert: thumbnails?.runHeifConvert ?? null,
   });
   app.route("/api", createThumbnailsRoutes(thumbnailService));
 

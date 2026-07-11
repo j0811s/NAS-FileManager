@@ -125,4 +125,30 @@ describe("GET /api/thumbnail", () => {
     const body = (await res.json()) as ApiError;
     expect(body.error.code).toBe("INVALID_REQUEST");
   });
+
+  it(".heic は thumbnails.runHeifConvert 未指定(デフォルトnull)なら 501 + UNSUPPORTED", async () => {
+    await writeFile(path.join(root, "photo.heic"), "heic-bytes");
+    const app = createApp(root, authConfig, undefined, thumbOptions());
+    const res = await app.request("/api/thumbnail?path=photo.heic", withAuth());
+    expect(res.status).toBe(501);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("UNSUPPORTED");
+  });
+
+  it(".heic は runHeifConvert が設定されていれば変換結果を返す", async () => {
+    await writeFile(path.join(root, "photo.heic"), "heic-bytes");
+    const app = createApp(root, authConfig, undefined, {
+      ...thumbOptions(),
+      runHeifConvert: async (_absIn, absOut) => {
+        await sharp({
+          create: { width: 100, height: 100, channels: 3, background: { r: 1, g: 2, b: 3 } },
+        })
+          .jpeg()
+          .toFile(absOut);
+      },
+    });
+    const res = await app.request("/api/thumbnail?path=photo.heic", withAuth());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+  });
 });
