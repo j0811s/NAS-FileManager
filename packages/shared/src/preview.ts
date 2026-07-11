@@ -1,6 +1,6 @@
 export type PreviewKind = "image" | "video" | "text";
 
-const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"]);
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".heic"]);
 const VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".ogv", ".ogg", ".mov"]);
 const TEXT_EXTENSIONS = new Set([
   ".txt",
