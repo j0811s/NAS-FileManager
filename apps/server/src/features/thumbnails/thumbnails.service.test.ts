@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 import { createProcessRunner, createThumbnailService, detectFfmpeg, type FfmpegRunner } from "./thumbnails.service";
 
 let root: string;
@@ -147,6 +148,85 @@ describe("createThumbnailService.getThumbnail", () => {
     gates.shift()!();
     await all;
     expect(max).toBe(2);
+  });
+
+  it("画像(jpg)のサムネイルをJPEGで生成する", async () => {
+    await sharp({
+      create: { width: 200, height: 200, channels: 3, background: { r: 10, g: 20, b: 30 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "photo.jpg"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const result = await svc.getThumbnail("photo.jpg");
+    expect(result.endsWith(".jpg")).toBe(true);
+    const meta = await sharp(result).metadata();
+    expect(meta.format).toBe("jpeg");
+  });
+
+  it("画像(png)からもJPEGサムネイルを生成する", async () => {
+    await sharp({
+      create: { width: 200, height: 200, channels: 4, background: { r: 10, g: 20, b: 30, alpha: 1 } },
+    })
+      .png()
+      .toFile(path.join(root, "photo.png"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const result = await svc.getThumbnail("photo.png");
+    const meta = await sharp(result).metadata();
+    expect(meta.format).toBe("jpeg");
+  });
+
+  it("SVGはサムネイル対象外で INVALID_REQUEST", async () => {
+    await writeFile(path.join(root, "logo.svg"), "<svg></svg>");
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    await expect(svc.getThumbnail("logo.svg")).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  });
+
+  it("元画像が480pxより大きい場合、480px以内にリサイズされる", async () => {
+    await sharp({
+      create: { width: 1000, height: 600, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "big.jpg"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const result = await svc.getThumbnail("big.jpg");
+    const meta = await sharp(result).metadata();
+    expect(meta.width).toBeLessThanOrEqual(480);
+    expect(meta.height).toBeLessThanOrEqual(480);
+  });
+
+  it("元画像が480pxより小さい場合、拡大されない", async () => {
+    await sharp({
+      create: { width: 100, height: 80, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .jpeg()
+      .toFile(path.join(root, "small.jpg"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const result = await svc.getThumbnail("small.jpg");
+    const meta = await sharp(result).metadata();
+    expect(meta.width).toBe(100);
+    expect(meta.height).toBe(80);
+  });
+
+  it("EXIF回転情報を反映して出力する", async () => {
+    // 横長(100x50)だが orientation=6（時計回り90度回転して表示すべき）を付与
+    await sharp({
+      create: { width: 100, height: 50, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toFile(path.join(root, "rotated.jpg"));
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    const result = await svc.getThumbnail("rotated.jpg");
+    const meta = await sharp(result).metadata();
+    // 回転後は縦長になっているはず
+    expect(meta.width!).toBeLessThan(meta.height!);
+  });
+
+  it("破損画像は INVALID_REQUEST になり、キャッシュに残骸を残さない", async () => {
+    await writeFile(path.join(root, "broken.jpg"), "not a real jpeg");
+    const svc = createThumbnailService({ root, cacheDir, runFfmpeg: null });
+    await expect(svc.getThumbnail("broken.jpg")).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+    expect(await readdir(cacheDir)).toEqual([]);
   });
 });
 

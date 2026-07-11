@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 import { classifyPreview } from "@nas-fm/shared";
 import { AppError } from "../../lib/errors";
 import { safeResolve } from "../../lib/safe-resolve";
@@ -44,8 +45,12 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
     waiters.shift()?.();
   }
 
-  async function generate(abs: string, cachePath: string): Promise<string> {
-    if (!runFfmpeg) {
+  async function generate(
+    abs: string,
+    cachePath: string,
+    kind: "video" | "image",
+  ): Promise<string> {
+    if (kind === "video" && !runFfmpeg) {
       throw new AppError("UNSUPPORTED", "ffmpeg is not available");
     }
     await acquire();
@@ -53,7 +58,11 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
     const tmp = `${cachePath}.tmp-${randomBytes(6).toString("hex")}`;
     try {
       await fs.mkdir(cacheDir, { recursive: true });
-      await runFfmpeg(abs, tmp);
+      if (kind === "video") {
+        await runFfmpeg!(abs, tmp);
+      } else {
+        await generateImageThumbnail(abs, tmp);
+      }
       await fs.rename(tmp, cachePath);
       return cachePath;
     } finally {
@@ -65,9 +74,13 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
   return {
     async getThumbnail(relPath: string): Promise<string> {
       const abs = safeResolve(root, relPath);
-      if (classifyPreview(path.basename(abs)) !== "video") {
-        throw new AppError("INVALID_REQUEST", "thumbnail is only supported for videos");
+      const kind = classifyPreview(path.basename(abs));
+      const ext = path.extname(abs).toLowerCase();
+      const supported = kind === "video" || (kind === "image" && ext !== ".svg");
+      if (!supported) {
+        throw new AppError("INVALID_REQUEST", "thumbnail is not supported for this file type");
       }
+      const mediaKind = kind as "video" | "image";
       const st = await fs.stat(abs).catch(() => null);
       if (!st) {
         throw new AppError("NOT_FOUND", `not found: ${relPath}`);
@@ -88,11 +101,23 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
       if (existing) {
         return existing;
       }
-      const promise = generate(abs, cachePath).finally(() => inflight.delete(key));
+      const promise = generate(abs, cachePath, mediaKind).finally(() => inflight.delete(key));
       inflight.set(key, promise);
       return promise;
     },
   };
+}
+
+async function generateImageThumbnail(abs: string, absOut: string): Promise<void> {
+  try {
+    await sharp(abs)
+      .rotate()
+      .resize(480, 480, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toFile(absOut);
+  } catch {
+    throw new AppError("INVALID_REQUEST", "failed to generate thumbnail");
+  }
 }
 
 export interface ProcessRunnerSpec {
