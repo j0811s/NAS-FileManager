@@ -221,6 +221,12 @@ app.post("/api/upload", async (c) => {
 
 ## 7. デプロイ（systemd 常駐）
 
+**事前準備: `/opt/nas-fm` ディレクトリを作成**（無いと以降の `nas-fm.env` 配置やアプリ本体の配置が「そのようなファイルやディレクトリはありません」で失敗する）。以降 `sudo` 無しで配置できるよう、所有者もここで揃えておく。
+
+```bash
+ssh <Pi のホスト名または IP> "sudo mkdir -p /opt/nas-fm && sudo chown <あなたのユーザー名>:nas /opt/nas-fm"
+```
+
 `deploy/nas-fm.service` を `/etc/systemd/system/nas-fm.service` にコピーして使う（値は環境に合わせて書き換える）。秘密値（`AUTH_SECRET` / `AUTH_PASSWORD_HASH`）はユニットファイルに直書きせず、`deploy/nas-fm.env.example` を `/opt/nas-fm/nas-fm.env` としてコピーし `chmod 600` した上でそちらに書く（ユニットファイルは Git 管理下にあるため、直書きすると誤ってコミットする恐れがある）。
 
 ```ini
