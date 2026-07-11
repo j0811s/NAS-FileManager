@@ -266,6 +266,7 @@ sudo systemctl status nas-fm --no-pager
 - ポートは他サービス（OMV / 既存の 8080 等）と重複しないよう決める
 - 動画サムネイル生成に ffmpeg を使うため `sudo apt install ffmpeg` を実行しておく（無くても起動はするがサムネイルは 501 になり一覧はアイコン表示になる）
 - HEICプレビュー変換に `heif-convert`（`libheif-examples`）を使うため `sudo apt install libheif-examples` を実行しておく（無くても起動はするがHEICのサムネイル/プレビューは 501 になる。開発機(Mac)は `brew install libheif`）
+- **重要**: `heif-convert` は本セッションでは実バイナリでの動作確認ができていない（開発環境で `brew install libheif` の許可が得られなかったため）。デプロイ後は実際の iPhone 撮影 HEIC ファイルを1枚アップロードし、一覧サムネイルとプレビューモーダルの両方が正しく表示されることを必ず確認すること
 - 画像サムネイル生成に使う `sharp` はネイティブバインディング（`.node`）を含むため、`npm run build` の esbuild バンドルでは `--external:sharp` としてバンドル対象外にしている。`npm run package`（= `scripts/package-release.mjs`）が実行時に自動で **Raspberry Pi OS 64bit（linux/arm64/glibc）向けのビルド済み `sharp` を別途取得**し、`release/node_modules/` に同梱する。そのため `/opt/nas-fm` には `server.js` / `public/` に加えて **`node_modules/` も必ずコピーする**こと（`node_modules` を配置し忘れると `Error: Could not load the "sharp" module using the linux-arm64 runtime` で起動時にクラッシュする）
 
 ---

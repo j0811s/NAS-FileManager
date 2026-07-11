@@ -329,6 +329,29 @@ describe("createThumbnailService.getThumbnail", () => {
     expect(files.some((f) => f.includes(".heic-tmp-"))).toBe(false);
   });
 
+  it(".heic変換でheif-convertが期待パス以外の連番ファイルも出力した場合、まとめて掃除される", async () => {
+    await writeFile(path.join(root, "photo.heic"), "fake-heic-bytes");
+    const heifRunner = vi.fn(async (_absIn: string, absOut: string) => {
+      await sharp({
+        create: { width: 100, height: 100, channels: 3, background: { r: 0, g: 0, b: 0 } },
+      })
+        .jpeg()
+        .toFile(absOut);
+      // heif-convert が複数画像出力時に書き出しうる連番ファイルを模倣
+      const decoyPath = absOut.replace(/\.jpg$/, "-1.jpg");
+      await writeFile(decoyPath, "decoy-image-bytes");
+    });
+    const svc = createThumbnailService({
+      root,
+      cacheDir,
+      runFfmpeg: null,
+      runHeifConvert: heifRunner,
+    });
+    await svc.getThumbnail("photo.heic");
+    const files = await readdir(cacheDir);
+    expect(files.some((f) => f.includes(".heic-tmp-"))).toBe(false);
+  });
+
   it(".heic 変換失敗時もキャッシュディレクトリに残骸を残さない", async () => {
     await writeFile(path.join(root, "photo.heic"), "fake-heic-bytes");
     const heifRunner = vi.fn(async () => {

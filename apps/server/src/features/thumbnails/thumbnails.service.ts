@@ -74,7 +74,8 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
     await acquire();
     // 同一ファイルシステム内の rename でアトミックに配置するため、一時ファイルはキャッシュディレクトリ内に置く
     const tmp = `${cachePath}.tmp-${randomBytes(6).toString("hex")}`;
-    const heicTmp = `${cachePath}.heic-tmp-${randomBytes(6).toString("hex")}.jpg`;
+    const heicTmpPrefix = `${cachePath}.heic-tmp-${randomBytes(6).toString("hex")}`;
+    const heicTmp = `${heicTmpPrefix}.jpg`;
     try {
       await fs.mkdir(cacheDir, { recursive: true });
       if (kind === "video") {
@@ -92,6 +93,17 @@ export function createThumbnailService(opts: ThumbnailServiceOptions): Thumbnail
       await fs.rm(tmp, { force: true }).catch(() => undefined);
       if (isHeic) {
         await fs.rm(heicTmp, { force: true }).catch(() => undefined);
+        // heif-convert が複数画像(バーストHEIC等)出力時に、期待パス以外の連番ファイル
+        // (例: out-1.jpg)を書き出すことがあるため、同じ接頭辞を持つ残骸もまとめて掃除する
+        const prefixName = path.basename(heicTmpPrefix);
+        const leftovers = await fs.readdir(cacheDir).catch(() => []);
+        await Promise.all(
+          leftovers
+            .filter((name) => name.startsWith(prefixName))
+            .map((name) =>
+              fs.rm(path.join(cacheDir, name), { force: true }).catch(() => undefined),
+            ),
+        );
       }
     }
   }
@@ -163,7 +175,7 @@ export interface ProcessRunnerSpec {
   timeoutMs: number;
 }
 
-/** 外部コマンドを spawn する FfmpegRunner を作る。タイムアウトで SIGKILL する。 */
+/** 外部コマンドを spawn する Runner を作る（ffmpeg/heif-convert 等、複数の呼び出し元で共有する）。タイムアウトで SIGKILL する。 */
 export function createProcessRunner(spec: ProcessRunnerSpec): FfmpegRunner {
   return (absIn, absOut) =>
     new Promise<void>((resolve, reject) => {
@@ -175,10 +187,10 @@ export function createProcessRunner(spec: ProcessRunnerSpec): FfmpegRunner {
       child.on("error", (err) => {
         clearTimeout(timer);
         if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-          reject(new AppError("UNSUPPORTED", "ffmpeg is not available"));
+          reject(new AppError("UNSUPPORTED", `${spec.command} is not available`));
           return;
         }
-        reject(new AppError("INTERNAL", `failed to run ffmpeg: ${String(err)}`));
+        reject(new AppError("INTERNAL", `failed to run ${spec.command}: ${String(err)}`));
       });
       child.on("close", (exitCode) => {
         clearTimeout(timer);
