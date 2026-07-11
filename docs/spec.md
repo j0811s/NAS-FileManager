@@ -35,6 +35,73 @@ Raspberry Pi 5 (4GB) を NAS として運用し、Samba を主軸に、ブラウ
 > testparm -s 2>/dev/null | grep -iA10 '\[' | grep -i 'path\|force group'
 > ```
 
+### 2.1 Samba のセットアップ手順（未設定の場合）
+
+まだ Samba を入れていない Pi では、以下の手順で「3. 権限の統一」を満たす形に構築する。
+
+**(1) インストール**
+
+```bash
+sudo apt update
+sudo apt install -y samba
+```
+
+**(2) 共有グループ・共有ディレクトリを作成**
+
+Web アプリ（Node/Hono プロセス）と Samba の両方がこのグループに属することで、どちらから書いたファイルも同じ権限になる。
+
+```bash
+sudo groupadd nas
+sudo mkdir -p /srv/nas/share
+sudo chgrp nas /srv/nas/share
+sudo chmod 2775 /srv/nas/share   # setgid: 新規ファイル/フォルダが nas グループを継承
+
+# Web アプリを動かす OS ユーザーを nas グループに追加
+sudo usermod -aG nas <Web アプリの実行ユーザー>
+```
+
+**(3) Samba ログイン用ユーザーを作成**
+
+Samba のユーザーは既存の Linux ユーザーに紐づく。専用ユーザーを作る場合:
+
+```bash
+sudo useradd -M -s /usr/sbin/nologin -G nas <Samba でログインするユーザー名>
+sudo smbpasswd -a <Samba でログインするユーザー名>   # Samba 用パスワードを設定
+```
+
+**(4) `/etc/samba/smb.conf` に共有を追加**
+
+`sudo nano /etc/samba/smb.conf` で末尾に追記（`force group` を section 2 の共通グループと一致させる。`create mask` / `directory mask` は `UMask=0002` と揃えた値）:
+
+```ini
+[share]
+   path = /srv/nas/share
+   browseable = yes
+   read only = no
+   valid users = @nas
+   force group = nas
+   create mask = 0664
+   directory mask = 2775
+   force create mode = 0664
+   force directory mode = 2775
+```
+
+**(5) 設定確認・反映**
+
+```bash
+testparm                          # 構文チェック（エラーが出ないこと）
+sudo systemctl restart smbd
+sudo systemctl enable smbd        # 起動時に自動起動
+```
+
+**(6) クライアントから接続確認**
+
+- Mac (Finder): `Cmd+K` → `smb://<PiのIP>/share`
+- Windows (エクスプローラー): `\\<PiのIP>\share`
+- iOS/Android: 各種 SMB 対応アプリ、または「ファイル」アプリのネットワーク接続機能から `smb://<PiのIP>/share`
+
+接続できたら、Web アプリ側からアップロードしたファイルが Finder 側にも同じ権限（グループ `nas`、`-rw-rw-r--`）で見えることを確認する（次章「3. 権限の統一」参照）。
+
 ---
 
 ## 3. 権限の統一（最重要）
