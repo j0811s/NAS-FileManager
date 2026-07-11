@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "build": "tsc -p tsconfig.json --noEmit && esbuild src/server.ts --bundle --platform=node --format=esm --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outfile=dist/server.js",
+    "build": "tsc -p tsconfig.json --noEmit && esbuild src/server.ts --bundle --platform=node --format=esm --external:sharp --banner:js=\"import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);\" --outfile=dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
