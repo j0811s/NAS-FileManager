@@ -10,6 +10,9 @@ import { safeResolve } from "../../lib/safe-resolve";
 /** 入力動画 absIn からサムネイル JPEG を absOut に生成する。失敗時は throw。 */
 export type FfmpegRunner = (absIn: string, absOut: string) => Promise<void>;
 
+/** 入力HEIC absIn からJPEGを absOut に変換する。失敗時は throw。 */
+export type HeifRunner = (absIn: string, absOut: string) => Promise<void>;
+
 /** "thumb" は一覧用(480px)、"preview" はモーダル用の大きいサイズ(1920px) */
 export type ThumbnailVariant = "thumb" | "preview";
 
@@ -219,6 +222,40 @@ export function detectFfmpeg(): Promise<boolean> {
     child.on("close", (code) => {
       clearTimeout(timer);
       resolve(code === 0);
+    });
+  });
+}
+
+/**
+ * 本番用 runner。heif-convert は出力ファイル名の拡張子で形式を判定するため、
+ * 出力パスは常に .jpg 拡張子を渡す（呼び出し側で保証する）。
+ */
+export const heifConvertRunner: HeifRunner = createProcessRunner({
+  command: "heif-convert",
+  args: (absIn, absOut) => [absIn, absOut],
+  timeoutMs: 20_000,
+});
+
+/**
+ * heif-convert が実行可能かを起動時に確認する用。
+ * heif-convert は引数無しで実行すると使用方法を表示して非ゼロ終了するため、ffmpeg の `-version` のように
+ * 終了コード0を期待できない。そのため終了コードではなく「プロセスを起動できたか（ENOENT等でspawn自体が
+ * 失敗しなかったか）」だけを可否判定に使う。ハングした場合もサーバー起動をブロックし続けないようタイムアウトする。
+ */
+export function detectHeifConvert(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn("heif-convert", [], { stdio: "ignore" });
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      resolve(true);
+    }, 5_000);
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on("close", () => {
+      clearTimeout(timer);
+      resolve(true);
     });
   });
 }

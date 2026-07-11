@@ -3,7 +3,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { createProcessRunner, createThumbnailService, detectFfmpeg, type FfmpegRunner } from "./thumbnails.service";
+import {
+  createProcessRunner,
+  createThumbnailService,
+  detectFfmpeg,
+  detectHeifConvert,
+  type FfmpegRunner,
+} from "./thumbnails.service";
 
 let root: string;
 let cacheParent: string;
@@ -315,6 +321,13 @@ describe("createProcessRunner", () => {
 describe("detectFfmpeg", () => {
   it("resolves within a few seconds even if ffmpeg is slow or absent", async () => {
     const result = await detectFfmpeg();
+    expect(typeof result).toBe("boolean");
+  });
+});
+
+describe("detectHeifConvert", () => {
+  it("resolves within a few seconds even if heif-convert is slow or absent", async () => {
+    const result = await detectHeifConvert();
     expect(typeof result).toBe("boolean");
   });
 });
