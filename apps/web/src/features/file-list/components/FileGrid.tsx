@@ -10,10 +10,12 @@ function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
   const [visible, setVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const kind = classifyPreview(name);
+  const isSvg = name.toLowerCase().endsWith(".svg");
+  const needsGeneratedThumbnail = (kind === "image" && !isSvg) || kind === "video";
 
   // 可視範囲に入るまでサムネイルのリクエストを遅延し、生成リクエストがサーバに殺到しないようにする
   useEffect(() => {
-    if (kind !== "video" || visible) return;
+    if (!needsGeneratedThumbnail || visible) return;
     const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -27,9 +29,9 @@ function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [kind, visible]);
+  }, [needsGeneratedThumbnail, visible]);
 
-  if (kind === "image" && !failed) {
+  if (kind === "image" && isSvg && !failed) {
     return (
       <img
         src={api.previewUrl(relPath)}
@@ -40,7 +42,7 @@ function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
       />
     );
   }
-  if (kind === "video" && !failed) {
+  if (needsGeneratedThumbnail && !failed) {
     return (
       <div ref={containerRef} className="relative flex h-full w-full items-center justify-center">
         {visible ? (
@@ -52,14 +54,18 @@ function Thumbnail({ name, relPath }: { name: string; relPath: string }) {
               className="h-full w-full object-cover"
               onError={() => setFailed(true)}
             />
-            <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <span className="rounded-full bg-background/70 p-1.5">
-                <Play size={16} className="fill-current text-foreground" />
+            {kind === "video" && (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <span className="rounded-full bg-background/70 p-1.5">
+                  <Play size={16} className="fill-current text-foreground" />
+                </span>
               </span>
-            </span>
+            )}
           </>
-        ) : (
+        ) : kind === "video" ? (
           <Film size={40} className="text-muted-foreground" />
+        ) : (
+          <ImageIcon size={40} className="text-muted-foreground" />
         )}
       </div>
     );

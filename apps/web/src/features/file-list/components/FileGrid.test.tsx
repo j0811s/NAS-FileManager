@@ -9,6 +9,7 @@ const entries: FileEntry[] = [
   { name: "cat.jpg", size: 100, mtime: 1700000000000, type: "file" },
   { name: "mov.mp4", size: 200, mtime: 1700000000000, type: "file" },
   { name: "doc.pdf", size: 300, mtime: 1700000000000, type: "file" },
+  { name: "logo.svg", size: 50, mtime: 1700000000000, type: "file" },
 ];
 
 function renderGrid(overrides: Partial<Parameters<typeof FileGrid>[0]> = {}) {
@@ -56,17 +57,59 @@ describe("FileGrid", () => {
     expect(onPreview).not.toHaveBeenCalled();
   });
 
-  it("画像は previewUrl を src に持つ遅延読み込み img を描画する", () => {
+  it("画像は thumbnailUrl を src に持つ遅延読み込み img を描画する", () => {
     renderGrid();
     const img = screen.getByAltText("cat.jpg");
-    expect(img.getAttribute("src")).toBe("/api/preview?path=cat.jpg");
+    expect(img.getAttribute("src")).toBe("/api/thumbnail?path=cat.jpg");
     expect(img.getAttribute("loading")).toBe("lazy");
   });
 
-  it("サブフォルダ内では path を含めた previewUrl になる", () => {
+  it("サブフォルダ内では path を含めた thumbnailUrl になる", () => {
     renderGrid({ path: "photos" });
     const img = screen.getByAltText("cat.jpg");
-    expect(img.getAttribute("src")).toBe("/api/preview?path=photos%2Fcat.jpg");
+    expect(img.getAttribute("src")).toBe("/api/thumbnail?path=photos%2Fcat.jpg");
+  });
+
+  it("SVGはサムネイル生成せず previewUrl を直接使う", () => {
+    renderGrid();
+    const img = screen.getByAltText("logo.svg");
+    expect(img.getAttribute("src")).toBe("/api/preview?path=logo.svg");
+    expect(img.getAttribute("loading")).toBe("lazy");
+  });
+
+  it("画像サムネイルには再生アイコンを重ねない", () => {
+    renderGrid();
+    const img = screen.getByAltText("cat.jpg");
+    expect(img.parentElement?.querySelector(".lucide-play")).toBeNull();
+  });
+
+  it("画像はビューポートに入るまでサムネイル画像をマウントしない(遅延読み込み)", () => {
+    let capturedCallback: IntersectionObserverCallback | undefined;
+    class ManualIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        capturedCallback = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    vi.stubGlobal("IntersectionObserver", ManualIntersectionObserver);
+
+    renderGrid({ entries: [entries[1]] });
+    expect(screen.queryByAltText("cat.jpg")).not.toBeInTheDocument();
+
+    act(() => {
+      capturedCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(screen.getByAltText("cat.jpg")).toBeInTheDocument();
+
+    vi.unstubAllGlobals();
   });
 
   it("動画は thumbnailUrl を src に持つ img を描画し、video 要素を使わない", () => {
@@ -105,7 +148,7 @@ describe("FileGrid", () => {
     }
     vi.stubGlobal("IntersectionObserver", ManualIntersectionObserver);
 
-    renderGrid();
+    renderGrid({ entries: [entries[2]] });
     expect(screen.queryByAltText("mov.mp4")).not.toBeInTheDocument();
 
     act(() => {
