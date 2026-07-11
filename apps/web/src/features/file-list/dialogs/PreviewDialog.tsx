@@ -2,6 +2,7 @@ import { classifyPreview } from "@nas-fm/shared";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { HeicPreview } from "./HeicPreview";
 import { TextPreview } from "./TextPreview";
 
 export function PreviewDialog({
@@ -16,6 +17,7 @@ export function PreviewDialog({
   path: string;
 }) {
   const kind = classifyPreview(name);
+  const isHeic = name.toLowerCase().endsWith(".heic");
   const url = api.previewUrl(path);
   const downloadHref = api.downloadUrl(path);
 
@@ -25,8 +27,16 @@ export function PreviewDialog({
         <DialogHeader>
           <DialogTitle>{name}</DialogTitle>
         </DialogHeader>
-        {open && kind === "image" && (
+        {open && kind === "image" && !isHeic && (
           <img src={url} alt={name} className="max-h-[70vh] w-full object-contain" />
+        )}
+        {open && kind === "image" && isHeic && (
+          <HeicPreview
+            key={path}
+            name={name}
+            url={api.thumbnailUrl(path, "preview")}
+            downloadHref={downloadHref}
+          />
         )}
         {open && kind === "video" && <video controls src={url} className="max-h-[70vh] w-full" />}
         {open && kind === "text" && <TextPreview url={url} />}

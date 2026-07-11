@@ -33,6 +33,15 @@ describe("PreviewDialog", () => {
     expect(link).toHaveAttribute("href", `/api/download?path=${encodeURIComponent("docs/a.zip")}`);
   });
 
+  it("HEICはHeicPreview経由でプレビュー用サムネイルを表示する", () => {
+    render(<PreviewDialog open onOpenChange={() => {}} name="a.heic" path="docs/a.heic" />);
+    const img = screen.getByRole("img", { name: "a.heic" });
+    expect(img).toHaveAttribute(
+      "src",
+      `/api/thumbnail?path=${encodeURIComponent("docs/a.heic")}&size=preview`,
+    );
+  });
+
   it("open が false のときは中身を描画しない", () => {
     render(<PreviewDialog open={false} onOpenChange={() => {}} name="a.jpg" path="a.jpg" />);
     expect(screen.queryByRole("img", { name: "a.jpg" })).toBeNull();
