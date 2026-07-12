@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { UploadDropzone } from "@/features/upload";
 import { useFileList } from "../hooks/useFileList";
 import { useFileMutations } from "../hooks/useFileMutations";
+import { useHashPath } from "../hooks/useHashPath";
 import { type SortDir, type SortKey, sortEntries } from "../sort";
 import { MkdirDialog } from "../dialogs/MkdirDialog";
 import { RenameDialog } from "../dialogs/RenameDialog";
@@ -24,7 +25,7 @@ function loadViewMode(): ViewMode {
 }
 
 export function FileBrowser() {
-  const [path, setPath] = useState("");
+  const [path, navigate] = useHashPath();
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [mkdirOpen, setMkdirOpen] = useState(false);
@@ -49,7 +50,7 @@ export function FileBrowser() {
     }
   }
   function openDir(name: string) {
-    setPath(path ? `${path}/${name}` : name);
+    navigate(path ? `${path}/${name}` : name);
   }
   function changeViewMode(mode: ViewMode) {
     setViewMode(mode);
@@ -105,7 +106,7 @@ export function FileBrowser() {
 
       <UploadDropzone path={path} />
 
-      <Breadcrumbs path={path} onNavigate={setPath} />
+      <Breadcrumbs path={path} onNavigate={navigate} />
 
       {isLoading && <p className="text-muted-foreground">読み込み中…</p>}
       {isError && (

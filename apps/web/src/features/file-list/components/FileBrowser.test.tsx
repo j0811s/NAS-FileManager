@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +14,7 @@ function renderWithClient(ui: ReactNode) {
 afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
+  window.location.hash = "";
 });
 
 describe("FileBrowser", () => {
@@ -199,5 +200,50 @@ describe("FileBrowser", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "次のファイル" }));
     expect(within(dialog).getByRole("img", { name: "z.jpg" })).toBeInTheDocument();
+  });
+
+  it("URLハッシュを指定してマウントすると、そのフォルダの一覧を取得する", async () => {
+    window.location.hash = "#/docs";
+    const list = vi.spyOn(api, "list").mockImplementation(async (path) => ({
+      path,
+      entries:
+        path === "docs" ? [{ name: "inner.txt", size: 1, mtime: 0, type: "file" as const }] : [],
+    }));
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("inner.txt")).toBeInTheDocument());
+    expect(list).toHaveBeenCalledWith("docs");
+  });
+
+  it("フォルダを開くとURLハッシュに新しいセグメントが追加される", async () => {
+    vi.spyOn(api, "list").mockImplementation(async (path) => ({
+      path,
+      entries: path === "" ? [{ name: "docs", size: 0, mtime: 0, type: "dir" as const }] : [],
+    }));
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("docs")).toBeInTheDocument());
+    await userEvent.click(screen.getByText("docs"));
+    await waitFor(() => expect(window.location.hash).toBe("#/docs"));
+  });
+
+  it("hashchangeで前のハッシュに戻すと、対応するフォルダの一覧表示に戻る", async () => {
+    const list = vi.spyOn(api, "list").mockImplementation(async (path) => ({
+      path,
+      entries:
+        path === ""
+          ? [{ name: "docs", size: 0, mtime: 0, type: "dir" as const }]
+          : [{ name: "inner.txt", size: 1, mtime: 0, type: "file" as const }],
+    }));
+    renderWithClient(<FileBrowser />);
+    await waitFor(() => expect(screen.getByText("docs")).toBeInTheDocument());
+    await userEvent.click(screen.getByText("docs"));
+    await waitFor(() => expect(screen.getByText("inner.txt")).toBeInTheDocument());
+
+    act(() => {
+      window.location.hash = "";
+      window.dispatchEvent(new Event("hashchange"));
+    });
+
+    await waitFor(() => expect(screen.queryByText("inner.txt")).not.toBeInTheDocument());
+    expect(list).toHaveBeenCalledWith("");
   });
 });
