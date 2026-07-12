@@ -10,9 +10,14 @@ export function LogoutButton() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });
   return (
-    <Button variant="outline" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
-      <LogOut size={16} className="mr-2" />
-      ログアウト
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label="ログアウト"
+      onClick={() => logout.mutate()}
+      disabled={logout.isPending}
+    >
+      <LogOut size={16} />
     </Button>
   );
 }
