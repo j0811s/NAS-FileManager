@@ -82,4 +82,16 @@ describe("useUpload", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["me"] });
     expect(error).toHaveBeenCalled();
   });
+
+  it("アップロード成功で disk-usage も再取得する", async () => {
+    vi.spyOn(api, "upload").mockResolvedValue();
+    vi.spyOn(toast, "success").mockReturnValue("" as never);
+    const client = new QueryClient();
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useUpload("docs"), { wrapper: wrapperWithClient(client) });
+    await act(async () => {
+      await result.current.upload(new File(["x"], "a.txt"));
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["disk-usage"] });
+  });
 });

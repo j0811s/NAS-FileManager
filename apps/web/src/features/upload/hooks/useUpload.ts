@@ -26,6 +26,7 @@ export function useUpload(path: string) {
         await api.upload(path, file, { onProgress: setProgress });
         toast.success(`${file.name} をアップロードしました`);
         qc.invalidateQueries({ queryKey: ["list", path] });
+        qc.invalidateQueries({ queryKey: ["disk-usage"] });
       } catch (err) {
         const code = err instanceof ApiRequestError ? err.code : "INTERNAL";
         if (err instanceof ApiRequestError && err.code === "UNAUTHORIZED") {
