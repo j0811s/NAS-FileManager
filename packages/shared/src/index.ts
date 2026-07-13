@@ -10,6 +10,9 @@ export type {
   MkdirRequest,
   OkResponse,
   RenameRequest,
+  TrashEntry,
+  TrashListResponse,
+  TrashRestoreRequest,
 } from "./types";
 export { classifyPreview } from "./preview";
 export type { PreviewKind } from "./preview";

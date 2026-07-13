@@ -54,3 +54,21 @@ export interface DiskUsageResponse {
   used: number;
   free: number;
 }
+
+export interface TrashEntry {
+  id: string;
+  name: string;
+  originalPath: string;
+  type: FileType;
+  size: number;
+  /** 削除時刻（epoch ミリ秒） */
+  deletedAt: number;
+}
+
+export interface TrashListResponse {
+  entries: TrashEntry[];
+}
+
+export interface TrashRestoreRequest {
+  id: string;
+}
