@@ -20,12 +20,18 @@ describe("App", () => {
     );
   });
 
-  it("認証済みでは一覧（ログアウト）を表示する", async () => {
+  it("認証済みでは一覧（ログアウト）とディスク使用量を表示する", async () => {
     vi.spyOn(api, "me").mockResolvedValue({ authenticated: true });
     vi.spyOn(api, "list").mockResolvedValue({ path: "", entries: [] });
+    vi.spyOn(api, "diskUsage").mockResolvedValue({
+      total: 100 * 1024 ** 3,
+      used: 50 * 1024 ** 3,
+      free: 50 * 1024 ** 3,
+    });
     render(<App />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument(),
     );
+    await waitFor(() => expect(screen.getByText("50.0GB / 100.0GB")).toBeInTheDocument());
   });
 });

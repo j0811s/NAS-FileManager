@@ -1,4 +1,5 @@
 import { AuthGate, LogoutButton, useAuth } from "@/features/auth";
+import { DiskUsageBadge } from "@/features/disk-usage";
 import { FileBrowser } from "@/features/file-list";
 import { Providers } from "./providers";
 
@@ -7,7 +8,10 @@ function Header() {
   return (
     <header className="flex items-center justify-between border-b px-6 py-4">
       <h1 className="text-xl font-semibold">NAS-FileManager</h1>
-      {data?.authenticated && <LogoutButton />}
+      <div className="flex items-center gap-4">
+        {data?.authenticated && <DiskUsageBadge />}
+        {data?.authenticated && <LogoutButton />}
+      </div>
     </header>
   );
 }
