@@ -162,6 +162,10 @@ describe("restoreFromTrash", () => {
 
     await expectAppError(restoreFromTrash(root, entry.id), "CONFLICT");
   });
+
+  it("パストラバーサルを試みる id は NOT_FOUND（.trash外へは一切アクセスしない）", async () => {
+    await expectAppError(restoreFromTrash(root, "../../../../etc/passwd"), "NOT_FOUND");
+  });
 });
 
 describe("purgeTrashEntry", () => {
@@ -178,5 +182,9 @@ describe("purgeTrashEntry", () => {
 
   it("存在しない id は NOT_FOUND", async () => {
     await expectAppError(purgeTrashEntry(root, "missing-id"), "NOT_FOUND");
+  });
+
+  it("パストラバーサルを試みる id は NOT_FOUND（.trash外へは一切アクセスしない）", async () => {
+    await expectAppError(purgeTrashEntry(root, "../../../../etc/passwd"), "NOT_FOUND");
   });
 });

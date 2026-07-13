@@ -18,6 +18,10 @@ interface TrashMeta {
 
 const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
+function isValidTrashId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id);
+}
+
 async function readMeta(metaPath: string): Promise<TrashMeta | null> {
   try {
     const raw = await fs.readFile(metaPath, "utf8");
@@ -101,6 +105,9 @@ export async function moveToTrash(root: string, relPath: string): Promise<void> 
 }
 
 export async function restoreFromTrash(root: string, id: string): Promise<void> {
+  if (!isValidTrashId(id)) {
+    throw new AppError("NOT_FOUND", `trash entry not found: ${id}`);
+  }
   const dir = trashRoot(root);
   const meta = await readMeta(path.join(dir, `${id}.json`));
   if (!meta) {
@@ -128,6 +135,9 @@ export async function restoreFromTrash(root: string, id: string): Promise<void> 
 }
 
 export async function purgeTrashEntry(root: string, id: string): Promise<void> {
+  if (!isValidTrashId(id)) {
+    throw new AppError("NOT_FOUND", `trash entry not found: ${id}`);
+  }
   const meta = await readMeta(path.join(trashRoot(root), `${id}.json`));
   if (!meta) {
     throw new AppError("NOT_FOUND", `trash entry not found: ${id}`);
