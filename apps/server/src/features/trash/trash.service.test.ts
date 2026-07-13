@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppError } from "../../lib/errors";
-import { moveToTrash, TRASH_DIR_NAME } from "./trash.service";
+import { listTrash, moveToTrash, TRASH_DIR_NAME } from "./trash.service";
 
 let root: string;
 
@@ -68,5 +68,60 @@ describe("moveToTrash", () => {
 
   it("root 自身の削除は INVALID_REQUEST", async () => {
     await expectAppError(moveToTrash(root, ""), "INVALID_REQUEST");
+  });
+});
+
+describe("listTrash", () => {
+  it("移動した項目が一覧に出る", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    await moveToTrash(root, "a.txt");
+
+    const entries = await listTrash(root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      name: "a.txt",
+      originalPath: "a.txt",
+      type: "file",
+      size: 5,
+    });
+    expect(entries[0].deletedAt).toBeGreaterThan(0);
+    expect(typeof entries[0].id).toBe("string");
+  });
+
+  it("フォルダを移動した場合は type が dir、size は 0", async () => {
+    await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub/b.txt"), "x");
+    await moveToTrash(root, "sub");
+
+    const entries = await listTrash(root);
+    expect(entries[0]).toMatchObject({ name: "sub", type: "dir", size: 0 });
+  });
+
+  it("30日を超えたエントリは自動的に完全削除され、一覧に出ない", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    await moveToTrash(root, "a.txt");
+    const [before] = await listTrash(root);
+
+    const metaPath = path.join(root, TRASH_DIR_NAME, `${before.id}.json`);
+    const old = Date.now() - 31 * 24 * 60 * 60 * 1000;
+    await writeFile(metaPath, JSON.stringify({ originalPath: "a.txt", deletedAt: old }));
+
+    const entries = await listTrash(root);
+    expect(entries).toEqual([]);
+    const remainingIds = await readdir(path.join(root, TRASH_DIR_NAME));
+    expect(remainingIds).toEqual([]);
+  });
+
+  it("壊れたメタデータ(不正JSON)は無視してクラッシュしない", async () => {
+    await mkdir(path.join(root, TRASH_DIR_NAME), { recursive: true });
+    await writeFile(path.join(root, TRASH_DIR_NAME, "broken.json"), "{not json");
+
+    const entries = await listTrash(root);
+    expect(entries).toEqual([]);
+  });
+
+  it(".trash ディレクトリが無ければ空配列を返す", async () => {
+    const entries = await listTrash(root);
+    expect(entries).toEqual([]);
   });
 });
