@@ -51,4 +51,22 @@ describe("useFileMutations", () => {
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["list", "docs"] }),
     );
   });
+
+  it("削除成功時に disk-usage も再取得する", async () => {
+    vi.spyOn(api, "remove").mockResolvedValue();
+    vi.spyOn(toast, "success").mockReturnValue("" as never);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useFileMutations("docs"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    result.current.remove.mutate("docs/gone.txt");
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["disk-usage"] }),
+    );
+  });
 });

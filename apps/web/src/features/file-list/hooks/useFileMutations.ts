@@ -40,6 +40,7 @@ export function useFileMutations(path: string) {
     mutationFn: (target: string) => api.remove(target),
     onSuccess: () => {
       invalidate();
+      qc.invalidateQueries({ queryKey: ["disk-usage"] });
       toast.success("削除しました");
     },
     onError: onErrorAndRefresh,
