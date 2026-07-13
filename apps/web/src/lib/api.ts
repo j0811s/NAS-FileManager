@@ -1,4 +1,4 @@
-import type { AuthStatus, ListResponse } from "@nas-fm/shared";
+import type { AuthStatus, DiskUsageResponse, ListResponse } from "@nas-fm/shared";
 
 export class ApiRequestError extends Error {
   readonly code: string;
@@ -83,6 +83,11 @@ export const api = {
   async me(): Promise<AuthStatus> {
     const res = await request("/api/auth/me");
     return (await res.json()) as AuthStatus;
+  },
+
+  async diskUsage(): Promise<DiskUsageResponse> {
+    const res = await request("/api/disk-usage");
+    return (await res.json()) as DiskUsageResponse;
   },
 
   upload(
