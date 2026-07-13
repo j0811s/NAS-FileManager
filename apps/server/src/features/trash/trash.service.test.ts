@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AppError } from "../../lib/errors";
-import { listTrash, moveToTrash, TRASH_DIR_NAME } from "./trash.service";
+import { listTrash, moveToTrash, purgeTrashEntry, restoreFromTrash, TRASH_DIR_NAME } from "./trash.service";
 
 let root: string;
 
@@ -123,5 +123,60 @@ describe("listTrash", () => {
   it(".trash ディレクトリが無ければ空配列を返す", async () => {
     const entries = await listTrash(root);
     expect(entries).toEqual([]);
+  });
+});
+
+describe("restoreFromTrash", () => {
+  it("元の場所に戻す", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    await moveToTrash(root, "a.txt");
+    const [entry] = await listTrash(root);
+
+    await restoreFromTrash(root, entry.id);
+
+    expect(await readFile(path.join(root, "a.txt"), "utf8")).toBe("hello");
+    expect(await listTrash(root)).toEqual([]);
+  });
+
+  it("元の親フォルダが削除済みでも自動再作成して復元できる", async () => {
+    await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub/a.txt"), "hello");
+    await moveToTrash(root, "sub/a.txt");
+    await rm(path.join(root, "sub"), { recursive: true });
+    const [entry] = await listTrash(root);
+
+    await restoreFromTrash(root, entry.id);
+
+    expect(await readFile(path.join(root, "sub/a.txt"), "utf8")).toBe("hello");
+  });
+
+  it("存在しない id は NOT_FOUND", async () => {
+    await expectAppError(restoreFromTrash(root, "missing-id"), "NOT_FOUND");
+  });
+
+  it("元の場所に同名の項目が既にあれば CONFLICT", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    await moveToTrash(root, "a.txt");
+    const [entry] = await listTrash(root);
+    await writeFile(path.join(root, "a.txt"), "new file at same path");
+
+    await expectAppError(restoreFromTrash(root, entry.id), "CONFLICT");
+  });
+});
+
+describe("purgeTrashEntry", () => {
+  it(".trash/<id>/ と <id>.json の両方を削除する", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    await moveToTrash(root, "a.txt");
+    const [entry] = await listTrash(root);
+
+    await purgeTrashEntry(root, entry.id);
+
+    const remaining = await readdir(path.join(root, TRASH_DIR_NAME));
+    expect(remaining).toEqual([]);
+  });
+
+  it("存在しない id は NOT_FOUND", async () => {
+    await expectAppError(purgeTrashEntry(root, "missing-id"), "NOT_FOUND");
   });
 });

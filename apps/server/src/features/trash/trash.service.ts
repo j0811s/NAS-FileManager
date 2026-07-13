@@ -99,3 +99,38 @@ export async function moveToTrash(root: string, relPath: string): Promise<void> 
   const meta: TrashMeta = { originalPath: relPath, deletedAt: Date.now() };
   await fs.writeFile(path.join(trashRoot(root), `${id}.json`), JSON.stringify(meta));
 }
+
+export async function restoreFromTrash(root: string, id: string): Promise<void> {
+  const dir = trashRoot(root);
+  const meta = await readMeta(path.join(dir, `${id}.json`));
+  if (!meta) {
+    throw new AppError("NOT_FOUND", `trash entry not found: ${id}`);
+  }
+  const itemDir = path.join(dir, id);
+  const itemNames = await fs.readdir(itemDir).catch(() => []);
+  const name = itemNames[0];
+  if (!name) {
+    throw new AppError("NOT_FOUND", `trash entry not found: ${id}`);
+  }
+
+  const dest = safeResolve(root, meta.originalPath);
+  const existing = await fs.lstat(dest).catch(() => null);
+  if (existing) {
+    throw new AppError("CONFLICT", `already exists: ${meta.originalPath}`);
+  }
+  await fs.mkdir(path.dirname(dest), { recursive: true });
+  try {
+    await fs.rename(path.join(itemDir, name), dest);
+  } catch (err) {
+    throw fromFsError(err, meta.originalPath);
+  }
+  await removeTrashFiles(root, id);
+}
+
+export async function purgeTrashEntry(root: string, id: string): Promise<void> {
+  const meta = await readMeta(path.join(trashRoot(root), `${id}.json`));
+  if (!meta) {
+    throw new AppError("NOT_FOUND", `trash entry not found: ${id}`);
+  }
+  await removeTrashFiles(root, id);
+}
