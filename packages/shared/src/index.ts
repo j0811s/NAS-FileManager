@@ -2,6 +2,7 @@ export type {
   ApiError,
   ApiErrorCode,
   AuthStatus,
+  DiskUsageResponse,
   FileEntry,
   FileType,
   ListResponse,

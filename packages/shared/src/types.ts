@@ -48,3 +48,9 @@ export interface LoginRequest {
 export interface AuthStatus {
   authenticated: boolean;
 }
+
+export interface DiskUsageResponse {
+  total: number;
+  used: number;
+  free: number;
+}
