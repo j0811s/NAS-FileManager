@@ -7,6 +7,7 @@ import { AppError, statusOf } from "./lib/errors";
 import { createAuthRoutes } from "./features/auth/auth.routes";
 import { requireAuth } from "./features/auth/auth.middleware";
 import { createFilesRoutes } from "./features/files/files.routes";
+import { createDiskUsageRoutes } from "./features/disk-usage/disk-usage.routes";
 import { createThumbnailsRoutes } from "./features/thumbnails/thumbnails.routes";
 import {
   createThumbnailService,
@@ -44,6 +45,7 @@ export function createApp(
   });
 
   app.route("/api", createFilesRoutes(root));
+  app.route("/api", createDiskUsageRoutes(root));
 
   // thumbnails 未指定（テスト等）は「ffmpeg 無し」として動かす。
   // runFfmpeg が null の間はキャッシュへの書き込みが発生しないため、cacheDir のデフォルト値が使われることはない。
