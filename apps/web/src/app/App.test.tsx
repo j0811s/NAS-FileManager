@@ -20,7 +20,7 @@ describe("App", () => {
     );
   });
 
-  it("認証済みでは一覧（ログアウト）とディスク使用量を表示する", async () => {
+  it("認証済みでは一覧（ログアウト）とディスク使用量とゴミ箱ボタンを表示する", async () => {
     vi.spyOn(api, "me").mockResolvedValue({ authenticated: true });
     vi.spyOn(api, "list").mockResolvedValue({ path: "", entries: [] });
     vi.spyOn(api, "diskUsage").mockResolvedValue({
@@ -28,10 +28,12 @@ describe("App", () => {
       used: 50 * 1024 ** 3,
       free: 50 * 1024 ** 3,
     });
+    vi.spyOn(api, "listTrash").mockResolvedValue({ entries: [] });
     render(<App />);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument(),
     );
     await waitFor(() => expect(screen.getByText("50.0GB / 100.0GB")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "ゴミ箱" })).toBeInTheDocument();
   });
 });

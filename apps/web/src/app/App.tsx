@@ -1,6 +1,7 @@
 import { AuthGate, LogoutButton, useAuth } from "@/features/auth";
 import { DiskUsageBadge } from "@/features/disk-usage";
 import { FileBrowser } from "@/features/file-list";
+import { TrashButton } from "@/features/trash";
 import { Providers } from "./providers";
 
 function Header() {
@@ -10,6 +11,7 @@ function Header() {
       <h1 className="text-xl font-semibold">NAS-FileManager</h1>
       <div className="flex items-center gap-4">
         {data?.authenticated && <DiskUsageBadge />}
+        {data?.authenticated && <TrashButton />}
         {data?.authenticated && <LogoutButton />}
       </div>
     </header>
