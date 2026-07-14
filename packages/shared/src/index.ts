@@ -10,6 +10,8 @@ export type {
   MkdirRequest,
   OkResponse,
   RenameRequest,
+  SearchEntry,
+  SearchResponse,
   TrashEntry,
   TrashListResponse,
   TrashRestoreRequest,

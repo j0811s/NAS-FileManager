@@ -72,3 +72,13 @@ export interface TrashListResponse {
 export interface TrashRestoreRequest {
   id: string;
 }
+
+export interface SearchEntry extends FileEntry {
+  /** マッチした項目自身の、NAS_ROOT からの相対パス */
+  path: string;
+}
+
+export interface SearchResponse {
+  entries: SearchEntry[];
+  truncated: boolean;
+}
