@@ -1,4 +1,9 @@
-import type { AuthStatus, DiskUsageResponse, ListResponse } from "@nas-fm/shared";
+import type {
+  AuthStatus,
+  DiskUsageResponse,
+  ListResponse,
+  TrashListResponse,
+} from "@nas-fm/shared";
 
 export class ApiRequestError extends Error {
   readonly code: string;
@@ -53,6 +58,23 @@ export const api = {
 
   async remove(path: string): Promise<void> {
     await request(`/api/delete?path=${encodeURIComponent(path)}`, { method: "DELETE" });
+  },
+
+  async listTrash(): Promise<TrashListResponse> {
+    const res = await request("/api/trash");
+    return (await res.json()) as TrashListResponse;
+  },
+
+  async restoreFromTrash(id: string): Promise<void> {
+    await request("/api/trash/restore", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ id }),
+    });
+  },
+
+  async purgeTrashEntry(id: string): Promise<void> {
+    await request(`/api/trash?id=${encodeURIComponent(id)}`, { method: "DELETE" });
   },
 
   downloadUrl(path: string): string {
