@@ -11,13 +11,13 @@ import {
   createFolderZipStream,
   listDir,
   makeDir,
-  removePath,
   renamePath,
   resolveDownloadEntry,
   statForDownload,
   uploadFile,
 } from "./files.service";
 import { optionalPath, parseMkdirBody, parseRenameBody, requirePath } from "./files.schema";
+import { moveToTrash } from "../trash/trash.service";
 
 function contentDisposition(filename: string): string {
   // 日本語等の非 ASCII ファイル名は RFC 5987 の filename* でエンコードする
@@ -60,7 +60,7 @@ export function createFilesRoutes(root: string): Hono {
   });
 
   app.get("/download", async (c) => {
-    const rel = requirePath(c.req.query("path"));
+    const rel = optionalPath(c.req.query("path"));
     const target = await resolveDownloadEntry(root, rel);
 
     if (target.kind === "dir") {
@@ -132,7 +132,7 @@ export function createFilesRoutes(root: string): Hono {
 
   app.delete("/delete", async (c) => {
     const rel = requirePath(c.req.query("path"));
-    await removePath(root, rel);
+    await moveToTrash(root, rel);
     const res: OkResponse = { ok: true };
     return c.json(res);
   });

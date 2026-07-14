@@ -11,7 +11,6 @@ import {
   createFolderZipStream,
   listDir,
   makeDir,
-  removePath,
   renamePath,
   resolveDownloadEntry,
   statForDownload,
@@ -73,28 +72,13 @@ describe("listDir", () => {
   it("パストラバーサルは PATH_TRAVERSAL", async () => {
     await expectAppError(listDir(root, "../"), "PATH_TRAVERSAL");
   });
-});
 
-describe("removePath", () => {
-  it("ファイルを削除できる", async () => {
-    await writeFile(path.join(root, "a.txt"), "x");
-    await removePath(root, "a.txt");
-    expect(await readdir(root)).toEqual([]);
-  });
-
-  it("空でないディレクトリを再帰削除できる", async () => {
-    await mkdir(path.join(root, "sub"));
-    await writeFile(path.join(root, "sub/b.txt"), "x");
-    await removePath(root, "sub");
-    expect(await readdir(root)).toEqual([]);
-  });
-
-  it("存在しないパスは NOT_FOUND", async () => {
-    await expectAppError(removePath(root, "missing"), "NOT_FOUND");
-  });
-
-  it("root 自身の削除は INVALID_REQUEST", async () => {
-    await expectAppError(removePath(root, ""), "INVALID_REQUEST");
+  it(".trash ディレクトリは一覧に含まれない", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    await mkdir(path.join(root, ".trash"));
+    await writeFile(path.join(root, ".trash", "leftover.txt"), "x");
+    const entries = await listDir(root, "");
+    expect(entries.map((e) => e.name)).toEqual(["a.txt"]);
   });
 });
 
@@ -289,5 +273,18 @@ describe("createFolderZipStream", () => {
     const zipPath = path.join(root, "out5.zip");
     const names = await zipToEntries(archive, zipPath);
     expect(names).toEqual(["keep.txt"]);
+  });
+
+  it(".trash ディレクトリは zip に含めない", async () => {
+    const dir = path.join(root, "folder");
+    await mkdir(dir);
+    await writeFile(path.join(dir, "a.txt"), "hello");
+    await mkdir(path.join(dir, ".trash"));
+    await writeFile(path.join(dir, ".trash", "leftover.txt"), "x");
+
+    const archive = createFolderZipStream(dir);
+    const zipPath = path.join(root, "out-trash.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names).toEqual(["a.txt"]);
   });
 });

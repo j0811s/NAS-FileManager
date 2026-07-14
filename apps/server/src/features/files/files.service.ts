@@ -7,6 +7,7 @@ import { ZipArchive, type Archiver } from "archiver";
 import type { FileEntry } from "@nas-fm/shared";
 import { AppError, fromFsError } from "../../lib/errors";
 import { safeResolve } from "../../lib/safe-resolve";
+import { TRASH_DIR_NAME } from "../trash/trash.service";
 
 export async function listDir(root: string, relPath: string): Promise<FileEntry[]> {
   const abs = safeResolve(root, relPath);
@@ -18,6 +19,7 @@ export async function listDir(root: string, relPath: string): Promise<FileEntry[
   }
   const entries: FileEntry[] = [];
   for (const name of names) {
+    if (name === TRASH_DIR_NAME) continue;
     const st = await fs.stat(path.join(abs, name)).catch(() => null);
     if (!st) continue; // 列挙後に消えたエントリはスキップ
     const isDir = st.isDirectory();
@@ -29,18 +31,6 @@ export async function listDir(root: string, relPath: string): Promise<FileEntry[
     });
   }
   return entries;
-}
-
-export async function removePath(root: string, relPath: string): Promise<void> {
-  const abs = safeResolve(root, relPath);
-  if (abs === root) {
-    throw new AppError("INVALID_REQUEST", "cannot delete the root directory");
-  }
-  const st = await fs.lstat(abs).catch(() => null);
-  if (!st) {
-    throw new AppError("NOT_FOUND", `not found: ${relPath}`);
-  }
-  await fs.rm(abs, { recursive: true });
 }
 
 export async function makeDir(root: string, relPath: string): Promise<void> {
@@ -144,6 +134,7 @@ async function walkAndAppend(archive: Archiver, absDir: string, zipPrefix: strin
   const entries = await fs.readdir(absDir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.isSymbolicLink()) continue;
+    if (entry.name === TRASH_DIR_NAME) continue;
     const absPath = path.join(absDir, entry.name);
     const zipPath = zipPrefix ? `${zipPrefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {

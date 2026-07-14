@@ -82,6 +82,15 @@ describe("GET /api/list", () => {
       consoleErrorSpy.mockRestore();
     }
   });
+
+  it("削除でゴミ箱へ移動した項目は一覧に出ない（.trash 自体も出ない）", async () => {
+    await writeFile(path.join(root, "a.txt"), "x");
+    const app = createApp(root, authConfig);
+    await app.request("/api/delete?path=a.txt", withAuth({ method: "DELETE" }));
+    const res = await app.request("/api/list?path=", withAuth());
+    const body = (await res.json()) as ListResponse;
+    expect(body.entries).toEqual([]);
+  });
 });
 
 describe("POST /api/upload", () => {
@@ -154,6 +163,20 @@ describe("GET /api/download", () => {
     const app = createApp(root, authConfig);
     const res = await app.request("/api/download?path=sub");
     expect(res.status).toBe(401);
+  });
+
+  it("ルート直下の zip ダウンロードに .trash 配下は含まれない", async () => {
+    await writeFile(path.join(root, "a.txt"), "hello");
+    const app = createApp(root, authConfig);
+    await app.request("/api/delete?path=a.txt", withAuth({ method: "DELETE" }));
+    await writeFile(path.join(root, "b.txt"), "still here");
+
+    const res = await app.request("/api/download?path=", withAuth());
+    expect(res.status).toBe(200);
+    const zipPath = path.join(root, "root-download.zip");
+    await pipeline(Readable.fromWeb(res.body as never), createWriteStream(zipPath));
+    const zip = new AdmZip(zipPath);
+    expect(zip.getEntries().map((e) => e.entryName)).toEqual(["b.txt"]);
   });
 });
 
