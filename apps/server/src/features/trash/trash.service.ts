@@ -47,7 +47,10 @@ export async function listTrash(root: string): Promise<TrashEntry[]> {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw fromFsError(err, TRASH_DIR_NAME);
   });
-  const ids = names.filter((n) => n.endsWith(".json")).map((n) => n.slice(0, -".json".length));
+  const ids = names
+    .filter((n) => n.endsWith(".json"))
+    .map((n) => n.slice(0, -".json".length))
+    .filter(isValidTrashId);
 
   const entries: TrashEntry[] = [];
   for (const id of ids) {

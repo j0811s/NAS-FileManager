@@ -124,6 +124,25 @@ describe("listTrash", () => {
     const entries = await listTrash(root);
     expect(entries).toEqual([]);
   });
+
+  it("不正な形式のidを持つファイルは一覧・自動パージ対象から除外される(パストラバーサル対策)", async () => {
+    await mkdir(path.join(root, TRASH_DIR_NAME), { recursive: true });
+    // ".." や "" のような id になり得る、細工されたファイル名を直接配置する
+    await writeFile(
+      path.join(root, TRASH_DIR_NAME, "..json"),
+      JSON.stringify({ originalPath: "x", deletedAt: Date.now() - 40 * 24 * 60 * 60 * 1000 }),
+    );
+    await writeFile(
+      path.join(root, TRASH_DIR_NAME, ".json"),
+      JSON.stringify({ originalPath: "y", deletedAt: Date.now() - 40 * 24 * 60 * 60 * 1000 }),
+    );
+
+    const entries = await listTrash(root);
+
+    expect(entries).toEqual([]);
+    // NAS_ROOT自体が削除されていないこと(親ディレクトリがまだ存在すること)を確認
+    await expect(readdir(root)).resolves.toContain(TRASH_DIR_NAME);
+  });
 });
 
 describe("restoreFromTrash", () => {
