@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { UploadDropzone } from "@/features/upload";
 import { useFileList } from "../hooks/useFileList";
 import { useFileMutations } from "../hooks/useFileMutations";
-import { useHashPath } from "../hooks/useHashPath";
+import { useHashPath } from "@/lib/useHashPath";
 import { type SortDir, type SortKey, sortEntries } from "../sort";
 import { MkdirDialog } from "../dialogs/MkdirDialog";
 import { RenameDialog } from "../dialogs/RenameDialog";
