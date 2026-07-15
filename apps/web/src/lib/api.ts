@@ -2,6 +2,7 @@ import type {
   AuthStatus,
   DiskUsageResponse,
   ListResponse,
+  SearchResponse,
   TrashListResponse,
 } from "@nas-fm/shared";
 
@@ -75,6 +76,11 @@ export const api = {
 
   async purgeTrashEntry(id: string): Promise<void> {
     await request(`/api/trash?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  async search(query: string): Promise<SearchResponse> {
+    const res = await request(`/api/search?q=${encodeURIComponent(query)}`);
+    return (await res.json()) as SearchResponse;
   },
 
   downloadUrl(path: string): string {
