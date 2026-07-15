@@ -10,6 +10,7 @@ import { createFilesRoutes } from "./features/files/files.routes";
 import { createDiskUsageRoutes } from "./features/disk-usage/disk-usage.routes";
 import { createThumbnailsRoutes } from "./features/thumbnails/thumbnails.routes";
 import { createTrashRoutes } from "./features/trash/trash.routes";
+import { createSearchRoutes } from "./features/search/search.routes";
 import {
   createThumbnailService,
   type FfmpegRunner,
@@ -46,6 +47,7 @@ export function createApp(
   });
 
   app.route("/api", createFilesRoutes(root));
+  app.route("/api", createSearchRoutes(root));
   app.route("/api", createTrashRoutes(root));
   app.route("/api", createDiskUsageRoutes(root));
 
