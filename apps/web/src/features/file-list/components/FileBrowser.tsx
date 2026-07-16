@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
+import { classifyPreview } from "@nas-fm/shared";
 import { FolderPlus, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UploadDropzone } from "@/features/upload";
+import { api } from "@/lib/api";
 import { useFileList } from "../hooks/useFileList";
 import { useFileMutations } from "../hooks/useFileMutations";
 import { useHashPath } from "@/lib/useHashPath";
@@ -56,7 +58,7 @@ export function FileBrowser() {
     setViewMode(mode);
     localStorage.setItem(VIEW_MODE_KEY, mode);
   }
-  const rel = (name: string) => (path ? `${path}/${name}` : name);
+  const rel = useCallback((name: string) => (path ? `${path}/${name}` : name), [path]);
 
   const previewableEntries = useMemo(
     () => sorted.filter((entry) => entry.type !== "dir"),
@@ -70,6 +72,24 @@ export function FileBrowser() {
     const next = previewableEntries[previewIndex + delta];
     if (next) setPreviewTarget(next);
   }
+
+  // 前後のファイルを裏で先読みし、次へ/前へを押したときに体感で即座に切り替わるようにする
+  // （/api/preview はキャッシュ可能なレスポンスを返すため、先読み済みなら実際のクリック時はブラウザキャッシュから取得される）
+  useEffect(() => {
+    if (previewIndex === -1) return;
+    const adjacent = [
+      previewableEntries[previewIndex - 1],
+      previewableEntries[previewIndex + 1],
+    ].filter((entry): entry is FileEntry => entry !== undefined);
+    for (const entry of adjacent) {
+      if (classifyPreview(entry.name) !== "image") continue;
+      const isHeic = entry.name.toLowerCase().endsWith(".heic");
+      const url = isHeic
+        ? api.thumbnailUrl(rel(entry.name), "preview")
+        : api.previewUrl(rel(entry.name));
+      new Image().src = url;
+    }
+  }, [previewIndex, previewableEntries, rel]);
 
   return (
     <div className="space-y-4">

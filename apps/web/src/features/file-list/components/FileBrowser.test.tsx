@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 import { FileBrowser } from "./FileBrowser";
 
@@ -245,5 +245,108 @@ describe("FileBrowser", () => {
 
     await waitFor(() => expect(screen.queryByText("inner.txt")).not.toBeInTheDocument());
     expect(list).toHaveBeenCalledWith("");
+  });
+
+  describe("プレビューの前後画像プリフェッチ", () => {
+    class FakeImage {
+      private _src = "";
+      set src(v: string) {
+        this._src = v;
+        prefetchedUrls.push(v);
+      }
+      get src() {
+        return this._src;
+      }
+    }
+    let prefetchedUrls: string[];
+    let restoreImage: () => void;
+
+    beforeEach(() => {
+      prefetchedUrls = [];
+      const original = globalThis.Image;
+      // @ts-expect-error テスト用の最小実装で差し替える
+      globalThis.Image = FakeImage;
+      restoreImage = () => {
+        globalThis.Image = original;
+      };
+    });
+
+    afterEach(() => restoreImage());
+
+    it("プレビューを開くと隣の画像を先読みする", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [
+          { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+          { name: "b.jpg", size: 1, mtime: 0, type: "file" },
+          { name: "c.jpg", size: 1, mtime: 0, type: "file" },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+      await userEvent.click(screen.getByText("a.jpg"));
+      await screen.findByRole("dialog");
+
+      await waitFor(() => expect(prefetchedUrls).toContain(api.previewUrl("b.jpg")));
+      expect(prefetchedUrls).not.toContain(api.previewUrl("c.jpg"));
+    });
+
+    it("次へ進むと新しく隣接した画像を先読みする", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [
+          { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+          { name: "b.jpg", size: 1, mtime: 0, type: "file" },
+          { name: "c.jpg", size: 1, mtime: 0, type: "file" },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+      await userEvent.click(screen.getByText("a.jpg"));
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "次のファイル" }));
+
+      await waitFor(() => expect(prefetchedUrls).toContain(api.previewUrl("c.jpg")));
+    });
+
+    it("画像以外(テキスト等)は先読みしない", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [
+          { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+          { name: "notes.txt", size: 1, mtime: 0, type: "file" },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+      await userEvent.click(screen.getByText("a.jpg"));
+      await screen.findByRole("dialog");
+
+      await waitFor(() => expect(prefetchedUrls.length).toBeGreaterThanOrEqual(0));
+      expect(prefetchedUrls).not.toContain(api.previewUrl("notes.txt"));
+    });
+
+    it("HEICはサムネイル(preview)用URLを先読みする", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [
+          { name: "a.jpg", size: 1, mtime: 0, type: "file" },
+          { name: "photo.heic", size: 1, mtime: 0, type: "file" },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.jpg")).toBeInTheDocument());
+
+      await userEvent.click(screen.getByText("a.jpg"));
+      await screen.findByRole("dialog");
+
+      await waitFor(() =>
+        expect(prefetchedUrls).toContain(api.thumbnailUrl("photo.heic", "preview")),
+      );
+      expect(prefetchedUrls).not.toContain(api.previewUrl("photo.heic"));
+    });
   });
 });
