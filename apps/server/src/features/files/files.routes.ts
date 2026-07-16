@@ -90,6 +90,7 @@ export function createFilesRoutes(root: string): Hono {
     c.header("X-Content-Type-Options", "nosniff");
     c.header("Content-Disposition", "inline");
     c.header("Accept-Ranges", "bytes");
+    c.header("Cache-Control", "private, max-age=86400");
 
     if (size === 0) {
       c.header("Content-Length", "0");

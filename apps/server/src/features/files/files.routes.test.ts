@@ -287,6 +287,13 @@ describe("GET /api/preview", () => {
     expect(res.headers.get("accept-ranges")).toBe("bytes");
   });
 
+  it("ブラウザキャッシュを許可するヘッダーを返す（プレビューモーダルの前後移動で同じ画像を毎回再取得しないため）", async () => {
+    await writeFile(path.join(root, "a.jpg"), "fake-jpeg-bytes");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/preview?path=a.jpg", withAuth());
+    expect(res.headers.get("cache-control")).toBe("private, max-age=86400");
+  });
+
   it("テキストは常に text/plain を返す（本来の MIME を使わない）", async () => {
     await writeFile(path.join(root, "a.html"), "<html>hi</html>");
     const app = createApp(root, authConfig);
