@@ -11,9 +11,5 @@ export function DiskUsageBadge() {
   const ratio = data.used / data.total;
   const className = ratio >= 0.9 ? "text-destructive" : "text-muted-foreground";
 
-  return (
-    <span className={`text-sm ${className}`}>
-      {formatGB(data.used)} / {formatGB(data.total)}
-    </span>
-  );
+  return <span className={`text-sm ${className}`}>残り {formatGB(data.free)}</span>;
 }
