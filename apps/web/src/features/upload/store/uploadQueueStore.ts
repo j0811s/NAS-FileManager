@@ -16,6 +16,7 @@ const MAX_CONCURRENT = 3;
 
 let items: UploadItem[] = [];
 let activeCount = 0;
+let nextId = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -67,7 +68,7 @@ export const uploadQueueStore = {
   },
   enqueue(path: string, files: File[]): void {
     const newItems: UploadItem[] = files.map((file) => ({
-      id: crypto.randomUUID(),
+      id: String(nextId++),
       file,
       path,
       status: "pending",
