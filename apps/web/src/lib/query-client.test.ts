@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "@/lib/api";
-import { createAuthAwareQueryClient } from "./providers";
+import { createAuthAwareQueryClient } from "./query-client";
 
 describe("createAuthAwareQueryClient", () => {
   it("UNAUTHORIZED エラーで ['me'] を無効化する", async () => {
