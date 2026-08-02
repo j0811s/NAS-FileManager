@@ -95,5 +95,6 @@ export const uploadQueueStore = {
 export function __resetForTests(): void {
   items = [];
   activeCount = 0;
+  nextId = 0;
   listeners.clear();
 }
