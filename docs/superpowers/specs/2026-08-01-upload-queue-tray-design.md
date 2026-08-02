@@ -198,6 +198,16 @@ export { UploadTray } from "./components/UploadTray";
 - `UploadTraySheet.test.tsx`（新規）: 項目一覧の表示、`error` 項目の再試行ボタン押下で `uploadQueueStore.retry` が呼ばれること、「完了済みをクリア」の動作
 - `providers.test.ts`（既存を確認/必要なら改修）: `queryClient` が export されていること
 
+## 実装時の変更点
+
+実装・レビューの過程で、本設計から以下の3点を変更した（理由込みで記録。詳細は `docs/superpowers/plans/2026-08-01-upload-queue-tray.md` の Task 2/3 参照）。
+
+- **`id` 生成**: `crypto.randomUUID()` ではなく、モジュールスコープの連番カウンタ（`let nextId = 0`, `id: String(nextId++)`）を使う。`crypto.randomUUID()` はセキュアコンテキスト（HTTPS/localhost）必須だが、本アプリは `docs/spec.md` §8 の方針通りLAN上のプレーンHTTPで配信されるため、実機では未定義になり例外を投げる。idはページセッション内で一意であれば十分なため連番で足りる
+- **`queryClient` の置き場所**: `app/providers.tsx` から export するのではなく、`apps/web/src/lib/query-client.ts` に切り出した。設計通り `providers.tsx` から export すると、`providers.tsx` → `features/upload`（`UploadTray`）→ `uploadQueueStore` → `providers.tsx` という循環importになるため
+- **`retry()` の非同期化**: `retry()` 内の `runWorker()` 呼び出しを `queueMicrotask(runWorker)` に変更した（`enqueue`/`runOne` は同期のまま）。同時実行数を検証するテスト（`enqueue` 呼び出し直後に同期的に`uploading`件数を検証）と、retry直後の状態を検証するテスト（`retry`呼び出し直後は`pending`のまま）が、`runWorker`を完全に同期実行する設計のままでは両立しないため
+
+なお `hasActiveItems()` は当初の設計通りだが、実装順序の都合で一時的に未使用となり `noUnusedLocals` エラーになったため、実装時はいったん削除し `beforeunload` 連携（サマリートースト条件と合わせて）を追加するタイミングで復元した。最終的な挙動は設計通り。
+
 ## 影響範囲
 
 - 新規: `apps/web/src/features/upload/store/uploadQueueStore.ts` + テスト
