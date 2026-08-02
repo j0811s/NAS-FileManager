@@ -1,25 +1,21 @@
 import { type DragEvent, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { useUpload } from "../hooks/useUpload";
+import { uploadQueueStore } from "../store/uploadQueueStore";
 
 export function UploadDropzone({ path }: { path: string }) {
-  const { upload, progress, isUploading } = useUpload(path);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  async function handleFiles(files: FileList | null) {
-    if (!files) return;
-    for (const file of Array.from(files)) {
-      await upload(file);
-    }
+  function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    uploadQueueStore.enqueue(path, Array.from(files));
   }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragOver(false);
-    void handleFiles(e.dataTransfer.files);
+    handleFiles(e.dataTransfer.files);
   }
 
   return (
@@ -48,13 +44,10 @@ export function UploadDropzone({ path }: { path: string }) {
         className="hidden"
         data-testid="upload-input"
         onChange={(e) => {
-          const el = e.target;
-          void handleFiles(el.files).then(() => {
-            el.value = "";
-          });
+          handleFiles(e.target.files);
+          e.target.value = "";
         }}
       />
-      {isUploading && progress !== null && <Progress value={progress} className="w-full" />}
     </Card>
   );
 }

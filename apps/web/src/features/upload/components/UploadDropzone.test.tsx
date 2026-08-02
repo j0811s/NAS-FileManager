@@ -1,30 +1,25 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { __resetForTests, uploadQueueStore } from "../store/uploadQueueStore";
 import { UploadDropzone } from "./UploadDropzone";
 
-function renderWithClient(ui: ReactNode) {
-  const client = new QueryClient();
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
-
+beforeEach(() => {
+  __resetForTests();
+  vi.spyOn(uploadQueueStore, "enqueue").mockImplementation(() => {});
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe("UploadDropzone", () => {
-  it("ファイル選択で api.upload を現在パスで呼ぶ", async () => {
-    const upload = vi.spyOn(api, "upload").mockResolvedValue();
-    renderWithClient(<UploadDropzone path="docs" />);
+  it("ファイル選択でキューに現在パスで積む", async () => {
+    render(<UploadDropzone path="docs" />);
     const input = screen.getByTestId("upload-input") as HTMLInputElement;
     await userEvent.upload(input, new File(["x"], "a.txt"));
-    expect(upload).toHaveBeenCalledWith("docs", expect.any(File), expect.any(Object));
+    expect(uploadQueueStore.enqueue).toHaveBeenCalledWith("docs", [expect.any(File)]);
   });
 
-  it("アップロード後に input の値をリセットし同じファイルを再選択できるようにする", async () => {
-    vi.spyOn(api, "upload").mockResolvedValue();
-    renderWithClient(<UploadDropzone path="docs" />);
+  it("選択後に input の値をリセットし同じファイルを再選択できるようにする", async () => {
+    render(<UploadDropzone path="docs" />);
     const input = screen.getByTestId("upload-input") as HTMLInputElement;
     await userEvent.upload(input, new File(["x"], "a.txt"));
     expect(input.value).toBe("");
