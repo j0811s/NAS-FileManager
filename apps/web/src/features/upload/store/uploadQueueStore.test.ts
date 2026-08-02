@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { __resetForTests, uploadQueueStore } from "./uploadQueueStore";
 
@@ -85,5 +86,60 @@ describe("uploadQueueStore", () => {
     uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
     expect(listener).toHaveBeenCalled();
     unsubscribe();
+  });
+});
+
+describe("uploadQueueStore のサマリートースト", () => {
+  it("全件成功でサマリー成功トーストを1回出す", async () => {
+    vi.spyOn(api, "upload").mockResolvedValue();
+    const success = vi.spyOn(toast, "success").mockReturnValue("" as never);
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt"), new File(["y"], "b.txt")]);
+    await vi.waitFor(() => expect(success).toHaveBeenCalledTimes(1));
+    expect(success).toHaveBeenCalledWith("2件アップロードしました");
+  });
+
+  it("一部失敗ありでサマリー失敗トーストを出す", async () => {
+    vi.spyOn(api, "upload").mockResolvedValueOnce().mockRejectedValueOnce(new Error("boom"));
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt"), new File(["y"], "b.txt")]);
+    await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(1));
+    expect(error).toHaveBeenCalledWith("1件成功、1件失敗しました");
+  });
+
+  it("全件失敗でサマリー失敗トーストを出す", async () => {
+    vi.spyOn(api, "upload").mockRejectedValue(new Error("boom"));
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(1));
+    expect(error).toHaveBeenCalledWith("1件のアップロードに失敗しました");
+  });
+
+  it("未クリアの既存 done 項目は次のサマリーに含めない", async () => {
+    vi.spyOn(api, "upload").mockResolvedValue();
+    const success = vi.spyOn(toast, "success").mockReturnValue("" as never);
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    await vi.waitFor(() => expect(success).toHaveBeenCalledTimes(1));
+
+    uploadQueueStore.enqueue("docs", [new File(["y"], "b.txt")]);
+    await vi.waitFor(() => expect(success).toHaveBeenCalledTimes(2));
+    expect(success).toHaveBeenLastCalledWith("1件アップロードしました");
+  });
+});
+
+describe("uploadQueueStore の beforeunload 連携", () => {
+  it("未完了アイテムがある間はタブを閉じる操作をブロックする", () => {
+    vi.spyOn(api, "upload").mockReturnValue(new Promise(() => {}));
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    const event = new Event("beforeunload", { cancelable: true });
+    const preventDefault = vi.spyOn(event, "preventDefault");
+    window.dispatchEvent(event);
+    expect(preventDefault).toHaveBeenCalled();
+  });
+
+  it("未完了アイテムがなければタブを閉じる操作をブロックしない", () => {
+    const event = new Event("beforeunload", { cancelable: true });
+    const preventDefault = vi.spyOn(event, "preventDefault");
+    window.dispatchEvent(event);
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 });

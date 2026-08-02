@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { ApiRequestError, api } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
 
@@ -28,6 +29,24 @@ function updateItem(id: string, patch: Partial<UploadItem>) {
   emit();
 }
 
+function hasActiveItems(): boolean {
+  return items.some((it) => it.status === "pending" || it.status === "uploading");
+}
+
+let settledSinceToast = { done: 0, error: 0 };
+
+function emitSummaryToast(doneCount: number, errorCount: number) {
+  if (errorCount === 0) {
+    toast.success(`${doneCount}件アップロードしました`);
+    return;
+  }
+  if (doneCount === 0) {
+    toast.error(`${errorCount}件のアップロードに失敗しました`);
+    return;
+  }
+  toast.error(`${doneCount}件成功、${errorCount}件失敗しました`);
+}
+
 function runWorker() {
   while (activeCount < MAX_CONCURRENT) {
     const next = items.find((it) => it.status === "pending");
@@ -44,6 +63,7 @@ async function runOne(item: UploadItem) {
       onProgress: (progress) => updateItem(item.id, { progress }),
     });
     updateItem(item.id, { status: "done", progress: 100 });
+    settledSinceToast = { ...settledSinceToast, done: settledSinceToast.done + 1 };
     queryClient.invalidateQueries({ queryKey: ["list", item.path] });
     queryClient.invalidateQueries({ queryKey: ["disk-usage"] });
   } catch (err) {
@@ -52,8 +72,13 @@ async function runOne(item: UploadItem) {
       queryClient.invalidateQueries({ queryKey: ["me"] });
     }
     updateItem(item.id, { status: "error", errorCode: code });
+    settledSinceToast = { ...settledSinceToast, error: settledSinceToast.error + 1 };
   } finally {
     activeCount--;
+    if (!hasActiveItems() && (settledSinceToast.done > 0 || settledSinceToast.error > 0)) {
+      emitSummaryToast(settledSinceToast.done, settledSinceToast.error);
+      settledSinceToast = { done: 0, error: 0 };
+    }
     runWorker();
   }
 }
@@ -96,5 +121,14 @@ export function __resetForTests(): void {
   items = [];
   activeCount = 0;
   nextId = 0;
+  settledSinceToast = { done: 0, error: 0 };
   listeners.clear();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", (e) => {
+    if (!hasActiveItems()) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
 }
