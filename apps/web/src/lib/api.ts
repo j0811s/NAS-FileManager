@@ -152,7 +152,7 @@ export const api = {
         reject(new ApiRequestError(code, message));
       });
       xhr.addEventListener("error", () =>
-        reject(new ApiRequestError("INTERNAL", "ネットワークエラー")),
+        reject(new ApiRequestError("NETWORK_ERROR", "ネットワークエラー")),
       );
       xhr.send(file);
     });

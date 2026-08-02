@@ -29,6 +29,15 @@ describe("UploadTraySheetContent", () => {
     expect(screen.getByText("photo.jpg")).toBeInTheDocument();
   });
 
+  it("待機中の項目は「待機中」を表示する", () => {
+    render(
+      <Sheet open>
+        <UploadTraySheetContent items={[makeItem({ status: "pending" })]} />
+      </Sheet>,
+    );
+    expect(screen.getByText("待機中")).toBeInTheDocument();
+  });
+
   it("失敗した項目にエラーメッセージと再試行ボタンを表示し、押すと retry を呼ぶ", async () => {
     const retry = vi.spyOn(uploadQueueStore, "retry").mockImplementation(() => {});
     render(

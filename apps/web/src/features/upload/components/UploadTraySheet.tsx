@@ -1,5 +1,5 @@
 import { Check, File, RotateCcw, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -35,12 +35,13 @@ function Thumbnail({ file }: { file: File }) {
   );
 }
 
-function UploadTrayItemRow({ item }: { item: UploadItem }) {
+const UploadTrayItemRow = memo(function UploadTrayItemRow({ item }: { item: UploadItem }) {
   return (
     <li className="flex items-center gap-3 py-2">
       <Thumbnail file={item.file} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{item.file.name}</p>
+        {item.status === "pending" && <p className="text-xs text-muted-foreground">待機中</p>}
         {item.status === "uploading" && <Progress value={item.progress} className="mt-1 h-1.5" />}
         {item.status === "error" && (
           <p className="text-xs text-destructive">{errorMessage(item.errorCode ?? "INTERNAL")}</p>
@@ -69,7 +70,7 @@ function UploadTrayItemRow({ item }: { item: UploadItem }) {
       )}
     </li>
   );
-}
+});
 
 export function UploadTraySheetContent({ items }: { items: UploadItem[] }) {
   const hasCompleted = items.some((it) => it.status === "done");

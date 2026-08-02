@@ -25,6 +25,7 @@ function emit() {
 }
 
 function updateItem(id: string, patch: Partial<UploadItem>) {
+  if (!items.some((it) => it.id === id)) return;
   items = items.map((it) => (it.id === id ? { ...it, ...patch } : it));
   emit();
 }
@@ -104,6 +105,8 @@ export const uploadQueueStore = {
     runWorker();
   },
   retry(id: string): void {
+    const target = items.find((it) => it.id === id);
+    if (target?.status !== "error") return;
     updateItem(id, { status: "pending", progress: 0, errorCode: undefined });
     queueMicrotask(runWorker);
   },

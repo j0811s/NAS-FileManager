@@ -28,6 +28,20 @@ describe("UploadTray", () => {
     expect(await screen.findByText("アップロード完了 1件")).toBeInTheDocument();
   });
 
+  it("全件失敗時は「アップロード失敗」件数を表示する", async () => {
+    vi.spyOn(api, "upload").mockRejectedValue(new Error("boom"));
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    render(<UploadTray />);
+    expect(await screen.findByText("アップロード失敗 1件")).toBeInTheDocument();
+  });
+
+  it("一部失敗ありは成功件数と失敗件数を併記する", async () => {
+    vi.spyOn(api, "upload").mockResolvedValueOnce().mockRejectedValueOnce(new Error("boom"));
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt"), new File(["y"], "b.txt")]);
+    render(<UploadTray />);
+    expect(await screen.findByText("アップロード完了 1件（1件失敗）")).toBeInTheDocument();
+  });
+
   it("クリックで詳細シートを開く", async () => {
     vi.spyOn(api, "upload").mockReturnValue(new Promise(() => {}));
     uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);

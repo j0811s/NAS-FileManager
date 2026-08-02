@@ -19,9 +19,11 @@ export function UploadTray() {
   const label =
     activeCount > 0
       ? `アップロード中 ${doneCount}/${items.length}件 (${percent}%)`
-      : errorCount > 0
-        ? `アップロード完了（${errorCount}件失敗）`
-        : `アップロード完了 ${doneCount}件`;
+      : doneCount === 0
+        ? `アップロード失敗 ${errorCount}件`
+        : errorCount > 0
+          ? `アップロード完了 ${doneCount}件（${errorCount}件失敗）`
+          : `アップロード完了 ${doneCount}件`;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

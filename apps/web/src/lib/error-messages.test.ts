@@ -11,6 +11,7 @@ describe("errorMessage", () => {
     "CONFLICT",
     "UNAUTHORIZED",
     "INTERNAL",
+    "NETWORK_ERROR",
   ])("%s に日本語メッセージがある", (code) => {
     const msg = errorMessage(code);
     expect(msg).toBeTruthy();

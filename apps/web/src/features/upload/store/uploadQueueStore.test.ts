@@ -59,6 +59,60 @@ describe("uploadQueueStore", () => {
     expect(api.upload).toHaveBeenCalledTimes(2);
   });
 
+  it("retry は uploading 状態では何もしない", async () => {
+    vi.spyOn(api, "upload").mockReturnValue(new Promise(() => {}));
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    const id = uploadQueueStore.getSnapshot()[0]!.id;
+    expect(uploadQueueStore.getSnapshot()[0]?.status).toBe("uploading");
+
+    uploadQueueStore.retry(id);
+    expect(uploadQueueStore.getSnapshot()[0]?.status).toBe("uploading");
+    expect(api.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("retry は done 状態では何もしない", async () => {
+    vi.spyOn(api, "upload").mockResolvedValue();
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    await vi.waitFor(() => expect(uploadQueueStore.getSnapshot()[0]?.status).toBe("done"));
+    const id = uploadQueueStore.getSnapshot()[0]!.id;
+
+    uploadQueueStore.retry(id);
+    expect(uploadQueueStore.getSnapshot()[0]?.status).toBe("done");
+    expect(api.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it("retry は pending 状態では何もしない", () => {
+    const deferreds = Array.from({ length: 4 }, () => deferred<void>());
+    let callIndex = 0;
+    vi.spyOn(api, "upload").mockImplementation(() => deferreds[callIndex++]!.promise);
+    const files = Array.from({ length: 4 }, (_, i) => new File(["x"], `f${i}.txt`));
+    uploadQueueStore.enqueue("docs", files);
+    const pendingItem = uploadQueueStore.getSnapshot().find((it) => it.status === "pending")!;
+
+    uploadQueueStore.retry(pendingItem.id);
+    expect(uploadQueueStore.getSnapshot().find((it) => it.id === pendingItem.id)?.status).toBe("pending");
+    expect(api.upload).toHaveBeenCalledTimes(3);
+  });
+
+  it("dismiss 済みの id への進捗更新は無視され listener も呼ばれない", () => {
+    let capturedOnProgress: ((progress: number) => void) | undefined;
+    vi.spyOn(api, "upload").mockImplementation((_path, _file, opts) => {
+      capturedOnProgress = opts?.onProgress;
+      return new Promise(() => {});
+    });
+    uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt")]);
+    const id = uploadQueueStore.getSnapshot()[0]!.id;
+    uploadQueueStore.dismiss(id);
+    expect(uploadQueueStore.getSnapshot()).toHaveLength(0);
+
+    const listener = vi.fn();
+    const unsubscribe = uploadQueueStore.subscribe(listener);
+    capturedOnProgress?.(50);
+    expect(listener).not.toHaveBeenCalled();
+    expect(uploadQueueStore.getSnapshot()).toHaveLength(0);
+    unsubscribe();
+  });
+
   it("dismiss で該当アイテムのみ除去する", () => {
     vi.spyOn(api, "upload").mockReturnValue(new Promise(() => {}));
     uploadQueueStore.enqueue("docs", [new File(["x"], "a.txt"), new File(["y"], "b.txt")]);
