@@ -231,14 +231,17 @@ EOF
 
 **Files:**
 - Modify: `packages/shared/src/types.ts`（Task 1 で `BulkPathsRequest` を追加済み。このタスクでの追加は無し）
+- Modify: `apps/server/src/features/files/files.schema.ts`
 - Modify: `apps/server/src/features/files/files.service.ts`
 - Modify: `apps/server/src/features/files/files.routes.ts`
 - Test: `apps/server/src/features/files/files.service.test.ts`
 - Test: `apps/server/src/features/files/files.routes.test.ts`
 
+**このタスクの一括ダウンロードは JSON ではなくフォーム送信（`application/x-www-form-urlencoded`）で受け取る。** zip 全体をブラウザメモリに溜めてから保存させる実装（fetch + blob化）は、数百件選択時に数百MB〜数GBをメモリに載せることになり、iPhone Safari でのタブクラッシュや「保存開始まで進捗が見えない」問題（＝この一連の機能改善の出発点だった「アップロード進捗の分かりづらさ」と同種の問題）を再現してしまうため。Task 3 でクライアントは非表示 `<form method="POST" target="_blank">` を送信し、ブラウザ自身にストリーミングダウンロードさせる。
+
 **Interfaces:**
-- Consumes: Task 1 の `BulkPathsRequest`、`parseBulkPathsBody`。既存の `walkAndAppend(archive: Archiver, absDir: string, zipPrefix: string): Promise<void>`（`files.service.ts` 内 private 関数、同ファイル内なのでそのまま呼べる）、`safeResolve(root: string, relPath: string): string`（`apps/server/src/lib/safe-resolve.ts`）
-- Produces: 関数 `createSelectionZipStream(root: string, relPaths: string[]): Archiver`（`files.service.ts`）、ルート `POST /api/download-bulk`
+- Consumes: Task 1 の `BulkPathsRequest`。既存の `walkAndAppend(archive: Archiver, absDir: string, zipPrefix: string): Promise<void>`（`files.service.ts` 内 private 関数、同ファイル内なのでそのまま呼べる）、`safeResolve(root: string, relPath: string): string`（`apps/server/src/lib/safe-resolve.ts`）
+- Produces: 関数 `createSelectionZipStream(root: string, relPaths: string[]): Archiver`（`files.service.ts`）、関数 `parseBulkPathsForm(value: unknown): BulkPathsRequest`（`files.schema.ts`）、ルート `POST /api/download-bulk`（`application/x-www-form-urlencoded` を受ける）
 
 - [ ] **Step 1: 失敗する service テストを書く**
 
@@ -352,9 +355,15 @@ Expected: PASS
 
 - [ ] **Step 5: 失敗する route テストを書く**
 
-`apps/server/src/features/files/files.routes.test.ts` の `describe("POST /api/delete-bulk", ...)` ブロックの直後に追加:
+`apps/server/src/features/files/files.routes.test.ts` の `describe("POST /api/delete-bulk", ...)` ブロックの直後、`formBody` ヘルパーとともに追加:
 
 ```ts
+function formBody(paths: string[]): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const p of paths) params.append("paths", p);
+  return params;
+}
+
 describe("POST /api/download-bulk", () => {
   it("複数選択をまとめて1つのzipで返す", async () => {
     await writeFile(path.join(root, "a.txt"), "a");
@@ -363,11 +372,7 @@ describe("POST /api/download-bulk", () => {
     const app = createApp(root, authConfig);
     const res = await app.request(
       "/api/download-bulk",
-      withAuth({
-        method: "POST",
-        headers: jsonHeaders,
-        body: JSON.stringify({ paths: ["a.txt", "sub"] }),
-      }),
+      withAuth({ method: "POST", body: formBody(["a.txt", "sub"]) }),
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/zip");
@@ -378,26 +383,35 @@ describe("POST /api/download-bulk", () => {
     expect(names.sort()).toEqual(["a.txt", "sub/inner.txt"]);
   });
 
+  it("1件だけの選択でも正しく zip 化する(フォームでは単一値が配列にならないための正規化を検証)", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      "/api/download-bulk",
+      withAuth({ method: "POST", body: formBody(["a.txt"]) }),
+    );
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const zip = new AdmZip(buf);
+    expect(zip.getEntries().map((e) => e.entryName)).toEqual(["a.txt"]);
+  });
+
   it("パストラバーサルを含む選択はストリーム開始前に 400 + PATH_TRAVERSAL を返す", async () => {
     const app = createApp(root, authConfig);
     const res = await app.request(
       "/api/download-bulk",
-      withAuth({
-        method: "POST",
-        headers: jsonHeaders,
-        body: JSON.stringify({ paths: ["../evil"] }),
-      }),
+      withAuth({ method: "POST", body: formBody(["../evil"]) }),
     );
     expect(res.status).toBe(400);
     const body = (await res.json()) as ApiError;
     expect(body.error.code).toBe("PATH_TRAVERSAL");
   });
 
-  it("空配列は 400 + INVALID_REQUEST", async () => {
+  it("paths が無い場合は 400 + INVALID_REQUEST", async () => {
     const app = createApp(root, authConfig);
     const res = await app.request(
       "/api/download-bulk",
-      withAuth({ method: "POST", headers: jsonHeaders, body: JSON.stringify({ paths: [] }) }),
+      withAuth({ method: "POST", body: new URLSearchParams() }),
     );
     expect(res.status).toBe(400);
     const body = (await res.json()) as ApiError;
@@ -411,9 +425,27 @@ describe("POST /api/download-bulk", () => {
 Run: `npm run test -w @nas-fm/server -- files.routes`
 Expected: FAIL（`/api/download-bulk` が存在せず 404）
 
-- [ ] **Step 7: ルートを実装する**
+- [ ] **Step 7: `parseBulkPathsForm` とルートを実装する**
 
-`apps/server/src/features/files/files.routes.ts` の import に `safeResolve` と `createSelectionZipStream` を追加:
+`apps/server/src/features/files/files.schema.ts` の末尾（`parseBulkPathsBody` の直後）に追加:
+
+```ts
+export function parseBulkPathsForm(value: unknown): BulkPathsRequest {
+  if (!isRecord(value)) {
+    throw new AppError("INVALID_REQUEST", "form body must contain paths");
+  }
+  const raw = value.paths;
+  const paths = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  if (paths.length === 0 || !paths.every((p) => typeof p === "string" && p !== "")) {
+    throw new AppError("INVALID_REQUEST", "paths must be non-empty strings");
+  }
+  return { paths };
+}
+```
+
+**注意:** Hono の `c.req.parseBody({ all: true })` は、同名フィールドが複数あれば配列、1個だけなら単一の文字列を返す（フィールド数に依存する）。1件だけ選択してダウンロードするケースで `paths` が配列でなく単一文字列になるため、上記の正規化（`Array.isArray(raw) ? raw : ...`）が必須。`BulkPathsRequest` 型と `isRecord`/`AppError` は Task 1 で既にこのファイルにある。
+
+`apps/server/src/features/files/files.routes.ts` の import に `safeResolve` と `createSelectionZipStream`、`parseBulkPathsForm` を追加:
 
 ```ts
 import { safeResolve } from "../../lib/safe-resolve";
@@ -432,13 +464,24 @@ import {
 } from "./files.service";
 ```
 
+```ts
+import {
+  optionalPath,
+  parseBulkPathsBody,
+  parseBulkPathsForm,
+  parseMkdirBody,
+  parseRenameBody,
+  requirePath,
+} from "./files.schema";
+```
+
 `app.post("/delete-bulk", ...)` の直後（`return app;` の前）に追加:
 
 ```ts
   app.post("/download-bulk", async (c) => {
-    const { paths } = parseBulkPathsBody(await readJsonBody(() => c.req.json()));
+    const { paths } = parseBulkPathsForm(await c.req.parseBody({ all: true }));
     // zip ストリーミング開始前に全パスを検証し、トラバーサル等は 400 として返す
-    // （ストリーム開始後は Content-Type 200 が確定済みで status を変更できないため）
+    // （ストリーム開始後は Content-Type / status 200 が確定済みで変更できないため）
     for (const p of paths) {
       safeResolve(root, p);
     }
@@ -462,14 +505,16 @@ Expected: 全て PASS
 - [ ] **Step 10: コミット**
 
 ```bash
-git add apps/server/src/features/files/files.service.ts apps/server/src/features/files/files.service.test.ts apps/server/src/features/files/files.routes.ts apps/server/src/features/files/files.routes.test.ts
+git add apps/server/src/features/files/files.schema.ts apps/server/src/features/files/files.service.ts apps/server/src/features/files/files.service.test.ts apps/server/src/features/files/files.routes.ts apps/server/src/features/files/files.routes.test.ts
 git commit -m "$(cat <<'EOF'
 feat: 一括ダウンロードAPIを追加する
 
 POST /api/download-bulk で複数選択（ファイル/フォルダ混在可）を1つの
 zipにまとめてストリーミング返却する。既存の createFolderZipStream の
-走査ロジック（walkAndAppend）を再利用した。パストラバーサルはzip
-ストリーム開始前に検証し400で弾く
+走査ロジック（walkAndAppend）を再利用した。フォーム送信（form-urlencoded）
+で受け、パストラバーサルはzipストリーム開始前に検証し400で弾く。JSON
+ではなくフォーム送信にしたのは、クライアント側でfetch+blob化すると
+大量選択時にブラウザメモリを圧迫するため（Task 3参照）
 EOF
 )"
 ```
@@ -484,8 +529,8 @@ EOF
 - Modify: `apps/web/src/lib/api.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1/2 の `BulkDeleteResponse`（`@nas-fm/shared`）、既存の `request()` / `JSON_HEADERS`（`apps/web/src/lib/api.ts` 内）
-- Produces: `Checkbox` コンポーネント（`@/components/ui/checkbox`。props は `React.ComponentProps<typeof CheckboxPrimitive.Root>` — `checked: boolean | "indeterminate"`, `onCheckedChange: (checked: boolean | "indeterminate") => void`, `aria-label` 等）、`api.deleteBulk(paths: string[]): Promise<BulkDeleteResponse>`、`api.downloadBulk(paths: string[]): Promise<void>`
+- Consumes: Task 1 の `BulkDeleteResponse`（`@nas-fm/shared`）、既存の `request()` / `JSON_HEADERS`（`apps/web/src/lib/api.ts` 内）
+- Produces: `Checkbox` コンポーネント（`@/components/ui/checkbox`。props は `React.ComponentProps<typeof CheckboxPrimitive.Root>` — `checked: boolean | "indeterminate"`, `onCheckedChange: (checked: boolean | "indeterminate") => void`, `aria-label` 等）、`api.deleteBulk(paths: string[]): Promise<BulkDeleteResponse>`、`api.downloadBulk(paths: string[]): void`（非表示フォームをPOST送信するのみで結果を返さない。詳細はStep 4参照）
 
 - [ ] **Step 1: Checkbox コンポーネントを作成する**
 
@@ -549,39 +594,32 @@ describe("api.deleteBulk", () => {
 });
 
 describe("api.downloadBulk", () => {
-  it("paths を POST し、返った blob をアンカークリックで保存する", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(new Blob(["zip-bytes"]), { status: 200 })),
-    );
-    const createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
-    const clickSpy = vi.fn();
+  it("paths ごとの hidden input を持つ form を組み立てて POST 送信する", () => {
+    let capturedForm: HTMLFormElement | undefined;
+    const submitSpy = vi.fn();
     const originalCreateElement = document.createElement.bind(document);
     const createElementSpy = vi
       .spyOn(document, "createElement")
       .mockImplementation((tag: string) => {
         const el = originalCreateElement(tag);
-        if (tag === "a") el.click = clickSpy;
+        if (tag === "form") {
+          capturedForm = el as HTMLFormElement;
+          (el as HTMLFormElement).submit = submitSpy;
+        }
         return el;
       });
 
-    await api.downloadBulk(["a.txt", "b.txt"]);
+    api.downloadBulk(["a.txt", "sub/b.txt"]);
 
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/download-bulk",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ paths: ["a.txt", "b.txt"] }) }),
+    expect(capturedForm?.method).toBe("post");
+    expect(capturedForm?.action).toContain("/api/download-bulk");
+    expect(capturedForm?.target).toBe("_blank");
+    const values = Array.from(capturedForm?.querySelectorAll('input[name="paths"]') ?? []).map(
+      (el) => (el as HTMLInputElement).value,
     );
-    expect(createObjectURL).toHaveBeenCalled();
-    expect(clickSpy).toHaveBeenCalled();
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+    expect(values).toEqual(["a.txt", "sub/b.txt"]);
+    expect(submitSpy).toHaveBeenCalledTimes(1);
     createElementSpy.mockRestore();
-  });
-
-  it("失敗時は ApiRequestError", async () => {
-    mockFetch(500, { error: { code: "INTERNAL", message: "x" } });
-    await expect(api.downloadBulk(["a.txt"])).rejects.toMatchObject({ code: "INTERNAL" });
   });
 });
 ```
@@ -618,19 +656,22 @@ import type {
     return (await res.json()) as BulkDeleteResponse;
   },
 
-  async downloadBulk(paths: string[]): Promise<void> {
-    const res = await request("/api/download-bulk", {
-      method: "POST",
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ paths }),
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "選択項目.zip";
-    a.click();
-    URL.revokeObjectURL(url);
+  downloadBulk(paths: string[]): void {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/download-bulk";
+    form.target = "_blank";
+    form.style.display = "none";
+    for (const p of paths) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "paths";
+      input.value = p;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
   },
 ```
 
@@ -650,6 +691,10 @@ Expected: エラーなし
 git add apps/web/src/components/ui/checkbox.tsx apps/web/src/lib/api.ts apps/web/src/lib/api.test.ts
 git commit -m "$(cat <<'EOF'
 feat: Checkboxコンポーネントと一括操作用APIクライアントを追加する
+
+downloadBulk は fetch+blob化ではなく非表示フォームのPOST送信にした。
+選択件数が多い場合にzip全体をメモリに溜めてから保存する形になるのを
+避け、ブラウザにネイティブなストリーミングダウンロードをさせるため
 EOF
 )"
 ```
@@ -670,9 +715,22 @@ EOF
 
 - [ ] **Step 1: 失敗する FileTable テストを書く**
 
-`apps/web/src/features/file-list/components/FileTable.test.tsx` に以下のヘルパーとテストを追加。ファイル冒頭に共通 props ヘルパーを追加:
+`selectMode`/`selectedNames`/`onToggleSelect` を必須 props にするため、既存の8件のテストも含めて
+`apps/web/src/features/file-list/components/FileTable.test.tsx` の**全体を以下の内容で置き換える**
+（既存テストを個別に書き換えず放置すると、必須 props 不足で型エラーになり typecheck が失敗するため）:
 
 ```tsx
+import type { FileEntry } from "@nas-fm/shared";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { FileTable } from "./FileTable";
+
+const entries: FileEntry[] = [
+  { name: "sub", size: 0, mtime: 1700000000000, type: "dir" },
+  { name: "a.txt", size: 12, mtime: 1700000000000, type: "file" },
+];
+
 function baseProps(overrides: Partial<Parameters<typeof FileTable>[0]> = {}) {
   return {
     entries,
@@ -691,11 +749,74 @@ function baseProps(overrides: Partial<Parameters<typeof FileTable>[0]> = {}) {
     ...overrides,
   };
 }
-```
 
-`describe("FileTable", ...)` 内の末尾に追加:
+describe("FileTable", () => {
+  it("1GB以上のファイルはGB単位で表示する", () => {
+    render(
+      <FileTable
+        {...baseProps({
+          entries: [
+            { name: "big.zip", size: 2 * 1024 * 1024 * 1024, mtime: 1700000000000, type: "file" },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("2.0 GB")).toBeInTheDocument();
+  });
 
-```tsx
+  it("エントリ名を表示する", () => {
+    render(<FileTable {...baseProps()} />);
+    expect(screen.getByText("sub")).toBeInTheDocument();
+    expect(screen.getByText("a.txt")).toBeInTheDocument();
+  });
+
+  it("ディレクトリ名クリックで onOpenDir を呼ぶ", async () => {
+    const onOpenDir = vi.fn();
+    render(<FileTable {...baseProps({ onOpenDir })} />);
+    await userEvent.click(screen.getByText("sub"));
+    expect(onOpenDir).toHaveBeenCalledWith("sub");
+  });
+
+  it("ファイル名クリックで onPreview を呼ぶ", async () => {
+    const onPreview = vi.fn();
+    render(<FileTable {...baseProps({ onPreview })} />);
+    await userEvent.click(screen.getByText("a.txt"));
+    expect(onPreview).toHaveBeenCalledWith(entries[1]);
+  });
+
+  it("行内の名前以外(サイズ列など)のクリックでも onPreview/onOpenDir を呼ぶ", async () => {
+    const onOpenDir = vi.fn();
+    const onPreview = vi.fn();
+    render(<FileTable {...baseProps({ onOpenDir, onPreview })} />);
+    await userEvent.click(screen.getByText("12 B"));
+    expect(onPreview).toHaveBeenCalledWith(entries[1]);
+    expect(onOpenDir).not.toHaveBeenCalled();
+  });
+
+  it("操作メニューのクリックでは onPreview/onOpenDir を呼ばない", async () => {
+    const onOpenDir = vi.fn();
+    const onPreview = vi.fn();
+    render(<FileTable {...baseProps({ onOpenDir, onPreview })} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "操作メニュー" })[0]);
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(onOpenDir).not.toHaveBeenCalled();
+  });
+
+  it("操作メニューの移動から onMove を呼ぶ", async () => {
+    const onMove = vi.fn();
+    render(<FileTable {...baseProps({ onMove })} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "操作メニュー" })[0]);
+    await userEvent.click(await screen.findByRole("menuitem", { name: /移動/ }));
+    expect(onMove).toHaveBeenCalledWith(entries[0]);
+  });
+
+  it("名前ヘッダクリックで onSortChange('name')", async () => {
+    const onSortChange = vi.fn();
+    render(<FileTable {...baseProps({ onSortChange })} />);
+    await userEvent.click(screen.getByRole("button", { name: /名前/ }));
+    expect(onSortChange).toHaveBeenCalledWith("name");
+  });
+
   it("selectMode時はチェックボックス列を表示する", () => {
     render(<FileTable {...baseProps({ selectMode: true })} />);
     expect(screen.getByRole("checkbox", { name: "sub を選択" })).toBeInTheDocument();
@@ -740,9 +861,8 @@ function baseProps(overrides: Partial<Parameters<typeof FileTable>[0]> = {}) {
     render(<FileTable {...baseProps({ selectMode: true })} />);
     expect(screen.queryByRole("button", { name: "操作メニュー" })).not.toBeInTheDocument();
   });
+});
 ```
-
-**注意:** このステップ以降、既存テストケース（Step 1 より前にある全てのテスト）は `baseProps()` を使わず個別に `<FileTable entries={...} ... />` を直書きしたままで良い（変更不要）。新規テストのみ `baseProps()` を使う。
 
 - [ ] **Step 2: テストが失敗することを確認**
 
@@ -1324,15 +1444,17 @@ EOF
 
 ---
 
-### Task 6: クライアント — useFileMutations に一括削除・一括ダウンロードを追加
+### Task 6: クライアント — useFileMutations に一括削除を追加
 
 **Files:**
 - Modify: `apps/web/src/features/file-list/hooks/useFileMutations.ts`
 - Modify: `apps/web/src/features/file-list/hooks/useFileMutations.test.tsx`
 
+**`api.downloadBulk` は非表示フォームのPOST送信のみで非同期の結果を返さない（Task 3参照）ため、`useMutation` 化しない。** ダウンロードは Task 7 で `FileBrowser` から `api.downloadBulk` を直接呼ぶ。このタスクで追加するのは `bulkDelete` のみ。
+
 **Interfaces:**
-- Consumes: Task 3 の `api.deleteBulk` / `api.downloadBulk`
-- Produces: `useFileMutations(path)` の戻り値に `bulkDelete`（`useMutation` の結果。`mutationFn: (paths: string[]) => Promise<BulkDeleteResponse>`）と `bulkDownload`（`mutationFn: (paths: string[]) => Promise<void>`）を追加
+- Consumes: Task 3 の `api.deleteBulk`
+- Produces: `useFileMutations(path)` の戻り値に `bulkDelete`（`useMutation` の結果。`mutationFn: (paths: string[]) => Promise<BulkDeleteResponse>`）を追加
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -1374,27 +1496,12 @@ EOF
     result.current.bulkDelete.mutate(["docs/a.txt", "docs/b.txt"]);
     await waitFor(() => expect(error).toHaveBeenCalledWith("1件削除しました（1件失敗）"));
   });
-
-  it("bulkDownload: api.downloadBulk を呼ぶ", async () => {
-    const downloadBulk = vi.spyOn(api, "downloadBulk").mockResolvedValue();
-    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
-    result.current.bulkDownload.mutate(["docs/a.txt"]);
-    await waitFor(() => expect(downloadBulk).toHaveBeenCalledWith(["docs/a.txt"]));
-  });
-
-  it("bulkDownload: 失敗時はエラートーストを出す", async () => {
-    vi.spyOn(api, "downloadBulk").mockRejectedValue(new ApiRequestError("INTERNAL", "x"));
-    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
-    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
-    result.current.bulkDownload.mutate(["docs/a.txt"]);
-    await waitFor(() => expect(error).toHaveBeenCalled());
-  });
 ```
 
 - [ ] **Step 2: テストが失敗することを確認**
 
 Run: `npm run test -w @nas-fm/web -- useFileMutations`
-Expected: FAIL（`bulkDelete`/`bulkDownload` が戻り値に無い）
+Expected: FAIL（`bulkDelete` が戻り値に無い）
 
 - [ ] **Step 3: `useFileMutations` を実装する**
 
@@ -1416,17 +1523,12 @@ Expected: FAIL（`bulkDelete`/`bulkDownload` が戻り値に無い）
     },
     onError: onErrorAndRefresh,
   });
-
-  const bulkDownload = useMutation({
-    mutationFn: (paths: string[]) => api.downloadBulk(paths),
-    onError: (err: unknown) => toastError(err),
-  });
 ```
 
 `return` 文を変更:
 
 ```ts
-  return { mkdir, rename, remove, bulkDelete, bulkDownload };
+  return { mkdir, rename, remove, bulkDelete };
 ```
 
 - [ ] **Step 4: テストが通ることを確認**
@@ -1444,7 +1546,7 @@ Expected: エラーなし
 ```bash
 git add apps/web/src/features/file-list/hooks/useFileMutations.ts apps/web/src/features/file-list/hooks/useFileMutations.test.tsx
 git commit -m "$(cat <<'EOF'
-feat: useFileMutationsに一括削除・一括ダウンロードを追加する
+feat: useFileMutationsに一括削除を追加する
 EOF
 )"
 ```
@@ -1458,7 +1560,7 @@ EOF
 - Modify: `apps/web/src/features/file-list/components/FileBrowser.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 4 の `FileTable`/`FileGrid` の `selectMode`/`selectedNames`/`onToggleSelect` props、Task 5 の `BulkActionToolbar`/`BulkDeleteDialog`、Task 6 の `bulkDelete`/`bulkDownload`
+- Consumes: Task 4 の `FileTable`/`FileGrid` の `selectMode`/`selectedNames`/`onToggleSelect` props、Task 5 の `BulkActionToolbar`/`BulkDeleteDialog`、Task 6 の `bulkDelete`、Task 3 の `api.downloadBulk`（`useFileMutations` は経由せず直接呼ぶ）
 
 - [ ] **Step 1: 失敗する統合テストを書く**
 
@@ -1525,12 +1627,12 @@ EOF
       expect(screen.getByRole("button", { name: "選択" })).toBeInTheDocument();
     });
 
-    it("ダウンロードボタンで bulkDownload を呼び、選択モードは維持される", async () => {
+    it("ダウンロードボタンで api.downloadBulk を呼び、選択モードは維持される", async () => {
       vi.spyOn(api, "list").mockResolvedValue({
         path: "",
         entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
       });
-      const downloadBulk = vi.spyOn(api, "downloadBulk").mockResolvedValue();
+      const downloadBulk = vi.spyOn(api, "downloadBulk").mockImplementation(() => {});
       renderWithClient(<FileBrowser />);
       await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
       await userEvent.click(screen.getByRole("button", { name: "選択" }));
@@ -1538,28 +1640,32 @@ EOF
 
       await userEvent.click(screen.getByRole("button", { name: "ダウンロード" }));
 
-      await waitFor(() => expect(downloadBulk).toHaveBeenCalledWith(["a.txt"]));
+      expect(downloadBulk).toHaveBeenCalledWith(["a.txt"]);
       expect(screen.getByText("1件選択中")).toBeInTheDocument();
     });
 
-    it("フォルダ移動で選択モード・選択状態がリセットされる", async () => {
+    it("フォルダ移動(hashchange)で選択モード・選択状態がリセットされる", async () => {
       vi.spyOn(api, "list").mockImplementation(async (path) => ({
         path,
         entries:
           path === ""
-            ? [{ name: "docs", size: 0, mtime: 0, type: "dir" as const }]
+            ? [{ name: "a.txt", size: 1, mtime: 0, type: "file" as const }]
             : [{ name: "inner.txt", size: 1, mtime: 0, type: "file" as const }],
       }));
       renderWithClient(<FileBrowser />);
-      await waitFor(() => expect(screen.getByText("docs")).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
       await userEvent.click(screen.getByRole("button", { name: "選択" }));
-      expect(screen.getByText("0件選択中")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("checkbox", { name: "a.txt を選択" }));
+      expect(screen.getByText("1件選択中")).toBeInTheDocument();
 
-      await userEvent.click(screen.getByRole("button", { name: "選択解除" }));
-      await userEvent.click(screen.getByText("docs"));
+      act(() => {
+        window.location.hash = "#/docs";
+        window.dispatchEvent(new Event("hashchange"));
+      });
 
       await waitFor(() => expect(screen.getByText("inner.txt")).toBeInTheDocument());
       expect(screen.getByRole("button", { name: "選択" })).toBeInTheDocument();
+      expect(screen.queryByText(/件選択中/)).not.toBeInTheDocument();
     });
 
     it("選択解除ボタンで選択モードを終了する", async () => {
@@ -1625,7 +1731,7 @@ import { BulkActionToolbar } from "./BulkActionToolbar";
 
 ```tsx
   const { data, isLoading, isError, refetch } = useFileList(path);
-  const { mkdir, rename, remove, bulkDelete, bulkDownload } = useFileMutations(path);
+  const { mkdir, rename, remove, bulkDelete } = useFileMutations(path);
 ```
 
 既存の `const rel = useCallback(...)` の行（テンプレートリテラルで相対パスを組み立てている既存の関数）の直後、かつ `const previewableEntries = useMemo(...)` の直前に、フォルダ移動時の選択リセットと選択操作の関数を追加する:
@@ -1671,8 +1777,8 @@ import { BulkActionToolbar } from "./BulkActionToolbar";
             onSelectAll={toggleSelectAll}
             onExit={exitSelectMode}
             onDelete={() => setBulkDeleteOpen(true)}
-            onDownload={() => bulkDownload.mutate([...selectedNames].map(rel))}
-            pending={bulkDelete.isPending || bulkDownload.isPending}
+            onDownload={() => api.downloadBulk([...selectedNames].map(rel))}
+            pending={bulkDelete.isPending}
           />
         ) : (
           <>
@@ -1829,8 +1935,14 @@ Playwright MCP でログイン後、複数のテストファイル（画像2〜3
 ## Self-Review メモ（このプラン作成時に実施済み）
 
 - 設計docの `BulkDeleteRequest`/`BulkDownloadRequest`（2つの同一構造の型）は `BulkPathsRequest` 1つに統合した（DRY）
-- 設計docの `deleteBulk`/`downloadBulk` の実装は、既存の共通ヘルパー `request()`（非ok時に `ApiRequestError` を投げる）をそのまま使う形に修正した（設計doc時点のプレースホルダー的な `fetch` 直書きを解消）
+- 設計docの `deleteBulk` の実装は、既存の共通ヘルパー `request()`（非ok時に `ApiRequestError` を投げる）をそのまま使う形に修正した（設計doc時点のプレースホルダー的な `fetch` 直書きを解消）
 - 設計docでは「BulkActionToolbarに全選択」「FileTableヘッダにも全選択」の両方に触れていたが、単一の選択元にするため全選択操作は `BulkActionToolbar` のみに統一し、`FileTable` のヘッダは列位置合わせ用の空セルのみとした
 - BulkDeleteDialog の文言は実際の `DeleteDialog.tsx` の実装（「ゴミ箱に移動します」）に合わせた（設計doc執筆時点の想定文言「削除しますか」から修正）
 - 一括削除は確認ダイアログの確定と同時に選択モードを終了する（既存の単発削除 `DeleteDialog` の `onConfirm` が mutation の結果を待たずダイアログを閉じる実装に合わせた、設計docの「成功後にクリア」から簡略化）
 - 一括ダウンロードは、zipストリーミング開始前に全パスを `safeResolve` で検証し、パストラバーサルを含む場合は 400 で弾くようにした（設計doc執筆時点では検討していなかった、ストリーム開始後はHTTPステータスを変更できないという制約への対応）
+
+**advisor によるレビュー後の修正（実装開始前）:**
+
+- 一括ダウンロードの送信方式を `fetch` + `blob()` から非表示 `<form target="_blank">` のPOST送信に変更した（Task 2/3）。数百件選択時にzip全体（数百MB〜数GB）がブラウザメモリに載ってから保存が始まる形は、iPhone Safariでのタブクラッシュや「保存開始まで進捗が見えない」問題を招き、この一連の機能改善の出発点（アップロード進捗の分かりづらさ）をダウンロード側で再現してしまうため。ユーザーに確認の上で採用。副作用として、`api.downloadBulk` は非同期の結果を返さなくなったため、Task 6 の `useFileMutations` から `bulkDownload` mutation を削除し、Task 7 で `FileBrowser` から直接呼ぶ形にした。サーバ側の `/api/download-bulk` も JSON ではなく `application/x-www-form-urlencoded` を受け取るよう変更した（`parseBulkPathsForm` を新設、`delete-bulk` はJSONのまま — 非対称は意図的）
+- Task 4（FileTable/FileGrid）で `selectMode`/`selectedNames`/`onToggleSelect` を必須 props にしたことで、`FileTable.test.tsx` の既存8テスト（旧版ではフルprops直書き）が型エラーになる問題を発見。Step 1 を「既存テストも含めファイル全体を `baseProps()` ベースに書き換える」よう修正した（`tsconfig.app.json` の `include: ["src"]` によりテストファイルも typecheck 対象のため、放置すると Step 10 の typecheck が失敗する）
+- Task 7 の「フォルダ移動で選択状態がリセットされる」テストが、実際には何も選択せず・選択モードも移動前に手動終了してから移動する内容で、リセット処理自体を検証できていなかった。実際に1件選択した状態を作り、行クリックではなく hashchange イベント（選択モード中は行クリックが選択トグルに奪われるため）でフォルダ移動を発生させ、選択件数表示が消えることまで確認する内容に修正した

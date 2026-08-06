@@ -56,13 +56,11 @@ const bulkDelete = useMutation({
   onError: onErrorAndRefresh,
 });
 
-const bulkDownload = useMutation({
-  mutationFn: (paths: string[]) => api.downloadBulk(paths),
-  onError: (err: unknown) => toastError(err),
-});
 ```
 
-削除成功後は呼び出し側（`FileBrowser`）で選択状態をクリアし `selectMode` を終了する。ダウンロードは非破壊操作のため、成功後も選択状態を維持する（続けて削除する導線を残す）。
+`downloadBulk` は非同期の結果を返さない（後述）ため `useMutation`化しない。`onDownload` ハンドラから `api.downloadBulk(paths)` を直接呼ぶ。
+
+削除成功後は呼び出し側（`FileBrowser`）で選択状態をクリアし `selectMode` を終了する。ダウンロードは非破壊操作のため、選択状態を維持する（続けて削除する導線を残す）。
 
 ### `apps/web/src/lib/api.ts`（追加）
 
@@ -71,35 +69,40 @@ async deleteBulk(paths: string[]): Promise<BulkDeleteResponse> {
   const res = await request("/api/delete-bulk", {
     method: "POST",
     headers: JSON_HEADERS,
-    body: JSON.stringify({ paths } satisfies BulkDeleteRequest),
+    body: JSON.stringify({ paths }),
   });
   return (await res.json()) as BulkDeleteResponse;
 },
 
-async downloadBulk(paths: string[]): Promise<void> {
-  const res = await request("/api/download-bulk", {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({ paths } satisfies BulkDownloadRequest),
-  });
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "選択項目.zip";
-  a.click();
-  URL.revokeObjectURL(url);
+downloadBulk(paths: string[]): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/api/download-bulk";
+  form.target = "_blank";
+  form.style.display = "none";
+  for (const p of paths) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "paths";
+    input.value = p;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
 },
 ```
 
-`request()` は既存の共通ヘルパーをそのまま使う（非ok時に `ApiRequestError` を投げる処理は共通化済み）。`downloadBulk` は単発ダウンロードの `downloadUrl()`（`<a href>` 直リンク）と違い POST が必要なため、`request()` が返す `Response` から `blob()` を取り出しクライアント側で保存をトリガーする。
+`request()`（fetch + blob化）は使わない。数百件選択時にzip全体（数百MB〜数GB になり得る）がブラウザメモリに載ってから保存が始まる形になり、iPhone Safari でのタブクラッシュや「保存が始まるまで進捗が見えない」問題（＝そもそもこの一連の機能改善の出発点だった「アップロードの進捗が分かりづらい」と同種の問題）を再現してしまうため。代わりに非表示の `<form method="POST" target="_blank">` を組み立てて `submit()` する。ブラウザ自身が実際のページ遷移としてリクエストを送るため、レスポンスをネイティブにディスクへストリーミング保存でき、ブラウザ標準のダウンロード進捗表示も使える。
+
+トレードオフ: フォーム送信は結果を JS で受け取れないため、ダウンロード失敗（サーバエラー等）を app 内のトーストで表示できない。`target="_blank"` により、失敗時のエラーレスポンス（JSON）は別タブに開かれるだけで、アプリ本体の画面遷移・状態は失われない（ユーザーはそのタブを閉じるだけで済む）。
 
 ## サーバ側 API
 
 ### `packages/shared/src/types.ts`（追加）
 
 ```ts
-export interface BulkDeleteRequest {
+export interface BulkPathsRequest {
   paths: string[];
 }
 
@@ -112,16 +115,16 @@ export interface BulkDeleteResult {
 export interface BulkDeleteResponse {
   results: BulkDeleteResult[];
 }
-
-export interface BulkDownloadRequest {
-  paths: string[];
-}
 ```
+
+一括削除・一括ダウンロードのどちらも受け取る内容は本質的に同じ `{ paths: string[] }` なので、`BulkPathsRequest` 1つに統合する（DRY）。
 
 ### `files.schema.ts`（追加）
 
+一括削除は JSON body、一括ダウンロードはフォーム送信（後述）で受け取るため、パース元が異なる2つの関数を用意する:
+
 ```ts
-export function parseBulkPathsBody(value: unknown): { paths: string[] } {
+export function parseBulkPathsBody(value: unknown): BulkPathsRequest {
   if (
     !isRecord(value) ||
     !Array.isArray(value.paths) ||
@@ -132,7 +135,21 @@ export function parseBulkPathsBody(value: unknown): { paths: string[] } {
   }
   return { paths: value.paths };
 }
+
+export function parseBulkPathsForm(value: unknown): BulkPathsRequest {
+  if (!isRecord(value)) {
+    throw new AppError("INVALID_REQUEST", "form body must contain paths");
+  }
+  const raw = value.paths;
+  const paths = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  if (paths.length === 0 || !paths.every((p) => typeof p === "string" && p !== "")) {
+    throw new AppError("INVALID_REQUEST", "paths must be non-empty strings");
+  }
+  return { paths };
+}
 ```
+
+`parseBulkPathsForm` が別関数として必要な理由: Hono の `c.req.parseBody({ all: true })` は、同名フィールドが複数あれば配列、1個だけなら単一の文字列を返す（フィールド数に依存する）。1件だけ選択してダウンロードするケースでは `paths` が配列でなく単一文字列で届くため、正規化が必要。
 
 ### `files.routes.ts`（追加）
 
@@ -153,13 +170,20 @@ app.post("/delete-bulk", async (c) => {
 });
 
 app.post("/download-bulk", async (c) => {
-  const { paths } = parseBulkPathsBody(await readJsonBody(() => c.req.json()));
+  const { paths } = parseBulkPathsForm(await c.req.parseBody({ all: true }));
+  // zip ストリーミング開始前に全パスを検証し、トラバーサル等は 400 として返す
+  // （ストリーム開始後は Content-Type / status 200 が確定済みで変更できないため）
+  for (const p of paths) {
+    safeResolve(root, p);
+  }
   const archive = createSelectionZipStream(root, paths);
   c.header("Content-Type", "application/zip");
   c.header("Content-Disposition", contentDisposition("選択項目.zip"));
   return c.body(Readable.toWeb(archive) as unknown as ReadableStream);
 });
 ```
+
+一括削除は JSON のままとする（レスポンスは小さなJSONで、失敗時もアプリ内で完結してトースト表示できるため、フォーム送信に変える理由がない）。一括ダウンロードのみ、大容量レスポンスをストリーミングでディスクに保存させる必要があるためフォーム送信にする。この非対称は意図的。
 
 一括削除は1件の失敗で全体を止めない（`try/catch` をループ内に置き、常に200 + 結果配列を返す）。空配列・不正な body は `INVALID_REQUEST`（400）。
 
@@ -204,7 +228,7 @@ export function createSelectionZipStream(root: string, relPaths: string[]): Arch
 ## エラーハンドリング
 
 - 一括削除: パスごとに成功/失敗を記録し、失敗があってもレスポンスは200。クライアントはサマリートーストで「N件削除しました（M件失敗）」と表示。失敗した項目は一覧の再取得で自然に残る（詳細な失敗理由の個別表示はしない — 既存のトースト粒度に合わせる）
-- 一括ダウンロード: リクエスト自体の失敗（不正な body、ネットワークエラー）は既存の `errorMessage` ベースのトーストで表示。zip 生成中に個別ファイルが消えていた場合は無視して続行（致命的にしない）
+- 一括ダウンロード: フォーム送信のためリクエスト自体の失敗（不正なパス、サーバエラー）を JS からは検知できず、アプリ内トーストは出さない。`target="_blank"` により失敗時のエラーレスポンス（JSON）は別タブに開くだけで、アプリ本体の画面遷移・状態は失われない。zip 生成中に個別ファイルが消えていた場合は無視して続行（致命的にしない）
 
 ## テスト方針
 
@@ -216,8 +240,8 @@ export function createSelectionZipStream(root: string, relPaths: string[]): Arch
 - `FileTable`/`FileGrid`: 選択モードでのチェックボックス表示・トグル、全選択のチェック状態
 - `BulkActionToolbar`: 件数表示、`pending` 時の disabled
 - `BulkDeleteDialog`: 件数を含む文言
-- `useFileMutations`: `bulkDelete`（成功/一部失敗のトースト分岐）、`bulkDownload`（成功/失敗）
-- `api.ts`: `deleteBulk`・`downloadBulk`（blobトリガー）
+- `useFileMutations`: `bulkDelete`（成功/一部失敗のトースト分岐）のみ。`downloadBulk` は非同期結果を返さないため mutation化しない
+- `api.ts`: `deleteBulk`（JSON POST）・`downloadBulk`（隠しフォームPOST、戻り値なし）
 
 ## 決定事項（ヒアリング結果）
 
@@ -225,3 +249,4 @@ export function createSelectionZipStream(root: string, relPaths: string[]): Arch
 - 一括操作ツールバーの位置: 上部（既存のアクション行を差し替え）。下部固定はアップロードトレイのピルと重なるため不採用
 - 全選択/全解除トグル: 必要（数十〜数百件を想定するため）
 - 一括API方式: サーバに `delete-bulk` / `download-bulk` を新設（クライアント側でのループは不採用 — 削除は数百リクエストになり得る、ダウンロードはモバイルSafariで複数ファイル同時ダウンロードがブロックされやすくUXが崩壊するため）
+- 一括ダウンロードの送信方式: `fetch` + `blob()` ではなく非表示 `<form target="_blank">` の POST 送信を採用。数百件選択時にzip全体（数百MB〜数GB）をブラウザメモリに溜めてから保存が始まる形は、iPhone Safari でのタブクラッシュや「保存開始まで進捗が見えない」問題を招き、この一連の機能改善の出発点（アップロード進捗の分かりづらさ）を再現してしまうため。トレードオフとして、ダウンロード失敗はアプリ内トーストで表示できなくなる（`target="_blank"` により別タブが開くだけで本体は無事）
