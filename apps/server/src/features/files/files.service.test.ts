@@ -9,6 +9,7 @@ import AdmZip from "adm-zip";
 import { AppError } from "../../lib/errors";
 import {
   createFolderZipStream,
+  createSelectionZipStream,
   listDir,
   makeDir,
   renamePath,
@@ -286,5 +287,49 @@ describe("createFolderZipStream", () => {
     const zipPath = path.join(root, "out-trash.zip");
     const names = await zipToEntries(archive, zipPath);
     expect(names).toEqual(["a.txt"]);
+  });
+});
+
+describe("createSelectionZipStream", () => {
+  it("選択した複数ファイルをzip直下に含む", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await writeFile(path.join(root, "b.txt"), "b");
+    const archive = createSelectionZipStream(root, ["a.txt", "b.txt"]);
+    const zipPath = path.join(root, "sel1.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names.sort()).toEqual(["a.txt", "b.txt"]);
+  });
+
+  it("選択したフォルダはフォルダ名をプレフィックスにして中身を含む", async () => {
+    await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub", "inner.txt"), "inner");
+    const archive = createSelectionZipStream(root, ["sub"]);
+    const zipPath = path.join(root, "sel2.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names).toEqual(["sub/inner.txt"]);
+  });
+
+  it("ファイルとフォルダの混在選択を1つのzipにまとめる", async () => {
+    await writeFile(path.join(root, "top.txt"), "top");
+    await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub", "inner.txt"), "inner");
+    const archive = createSelectionZipStream(root, ["top.txt", "sub"]);
+    const zipPath = path.join(root, "sel3.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names.sort()).toEqual(["sub/inner.txt", "top.txt"]);
+  });
+
+  it("走査開始後に消えていたパスは無視して他の選択項目を含む", async () => {
+    await writeFile(path.join(root, "keep.txt"), "keep");
+    const archive = createSelectionZipStream(root, ["keep.txt", "missing.txt"]);
+    const zipPath = path.join(root, "sel4.zip");
+    const names = await zipToEntries(archive, zipPath);
+    expect(names).toEqual(["keep.txt"]);
+  });
+
+  it("パストラバーサルを含む選択は zip 化を失敗させる", async () => {
+    const archive = createSelectionZipStream(root, ["../evil"]);
+    const zipPath = path.join(root, "sel5.zip");
+    await expect(zipToEntries(archive, zipPath)).rejects.toThrow();
   });
 });

@@ -12,8 +12,10 @@ import { classifyPreview } from "@nas-fm/shared";
 import { AppError } from "../../lib/errors";
 import { previewContentType } from "../../lib/preview-mime";
 import { parseRange } from "../../lib/range";
+import { safeResolve } from "../../lib/safe-resolve";
 import {
   createFolderZipStream,
+  createSelectionZipStream,
   listDir,
   makeDir,
   renamePath,
@@ -24,6 +26,7 @@ import {
 import {
   optionalPath,
   parseBulkPathsBody,
+  parseBulkPathsForm,
   parseMkdirBody,
   parseRenameBody,
   requirePath,
@@ -166,6 +169,19 @@ export function createFilesRoutes(root: string): Hono {
     }
     const res: BulkDeleteResponse = { results };
     return c.json(res);
+  });
+
+  app.post("/download-bulk", async (c) => {
+    const { paths } = parseBulkPathsForm(await c.req.parseBody({ all: true }));
+    // zip ストリーミング開始前に全パスを検証し、トラバーサル等は 400 として返す
+    // （ストリーム開始後は Content-Type / status 200 が確定済みで変更できないため）
+    for (const p of paths) {
+      safeResolve(root, p);
+    }
+    const archive = createSelectionZipStream(root, paths);
+    c.header("Content-Type", "application/zip");
+    c.header("Content-Disposition", contentDisposition("選択項目.zip"));
+    return c.body(Readable.toWeb(archive) as unknown as ReadableStream);
   });
 
   return app;

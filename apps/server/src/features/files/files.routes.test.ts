@@ -340,6 +340,55 @@ describe("POST /api/delete-bulk", () => {
   });
 });
 
+function formBody(paths: string[]): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const p of paths) params.append("paths", p);
+  return params;
+}
+
+describe("POST /api/download-bulk", () => {
+  it("複数選択をまとめて1つのzipで返す", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub", "inner.txt"), "inner");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/download-bulk", withAuth({ method: "POST", body: formBody(["a.txt", "sub"]) }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/zip");
+    expect(res.headers.get("content-disposition")).toContain("zip");
+    const buf = Buffer.from(await res.arrayBuffer());
+    const zip = new AdmZip(buf);
+    const names = zip.getEntries().map((e) => e.entryName);
+    expect(names.sort()).toEqual(["a.txt", "sub/inner.txt"]);
+  });
+
+  it("1件だけの選択でも正しく zip 化する(フォームでは単一値が配列にならないための正規化を検証)", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/download-bulk", withAuth({ method: "POST", body: formBody(["a.txt"]) }));
+    expect(res.status).toBe(200);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const zip = new AdmZip(buf);
+    expect(zip.getEntries().map((e) => e.entryName)).toEqual(["a.txt"]);
+  });
+
+  it("パストラバーサルを含む選択はストリーム開始前に 400 + PATH_TRAVERSAL を返す", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/download-bulk", withAuth({ method: "POST", body: formBody(["../evil"]) }));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("PATH_TRAVERSAL");
+  });
+
+  it("paths が無い場合は 400 + INVALID_REQUEST", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/download-bulk", withAuth({ method: "POST", body: new URLSearchParams() }));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+});
+
 describe("GET /api/preview", () => {
   it("画像は実際の MIME で 200 を返す", async () => {
     await writeFile(path.join(root, "a.jpg"), "fake-jpeg-bytes");

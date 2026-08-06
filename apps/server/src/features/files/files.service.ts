@@ -162,3 +162,32 @@ export function createFolderZipStream(absDir: string): Archiver {
   );
   return archive;
 }
+
+/** 複数の選択項目（ファイル/フォルダ混在可）を1つの無圧縮zipとしてストリーミング生成する。 */
+export function createSelectionZipStream(root: string, relPaths: string[]): Archiver {
+  const archive = new ZipArchive({ store: true });
+  const handleError = (err: unknown) => {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      archive.destroy(err as Error);
+    }
+  };
+  archive.on("warning", handleError);
+  archive.on("error", handleError);
+  void (async () => {
+    for (const relPath of relPaths) {
+      const abs = safeResolve(root, relPath);
+      const st = await fs.stat(abs).catch(() => null);
+      if (!st) continue;
+      const name = path.basename(abs);
+      if (st.isDirectory()) {
+        await walkAndAppend(archive, abs, name);
+      } else if (st.isFile()) {
+        archive.file(abs, { name });
+      }
+    }
+  })().then(
+    () => archive.finalize(),
+    (err) => archive.destroy(err as Error),
+  );
+  return archive;
+}

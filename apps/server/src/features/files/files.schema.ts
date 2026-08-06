@@ -47,3 +47,15 @@ export function parseBulkPathsBody(value: unknown): BulkPathsRequest {
   }
   return { paths: value.paths };
 }
+
+export function parseBulkPathsForm(value: unknown): BulkPathsRequest {
+  if (!isRecord(value)) {
+    throw new AppError("INVALID_REQUEST", "form body must contain paths");
+  }
+  const raw = value.paths;
+  const paths = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  if (paths.length === 0 || !paths.every((p) => typeof p === "string" && p !== "")) {
+    throw new AppError("INVALID_REQUEST", "paths must be non-empty strings");
+  }
+  return { paths };
+}
