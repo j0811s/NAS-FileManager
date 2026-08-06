@@ -275,6 +275,71 @@ describe("DELETE /api/delete", () => {
   });
 });
 
+describe("POST /api/delete-bulk", () => {
+  it("複数パスを削除しゴミ箱に移動する", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await writeFile(path.join(root, "b.txt"), "b");
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      "/api/delete-bulk",
+      withAuth({
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ paths: ["a.txt", "b.txt"] }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: { path: string; ok: boolean }[] };
+    expect(body.results).toEqual([
+      { path: "a.txt", ok: true },
+      { path: "b.txt", ok: true },
+    ]);
+    const list = await app.request("/api/list?path=", withAuth());
+    expect(((await list.json()) as ListResponse).entries).toEqual([]);
+  });
+
+  it("一部が存在しない場合はそのパスのみ ok:false errorCode:NOT_FOUND を返し、他は成功する", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      "/api/delete-bulk",
+      withAuth({
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ paths: ["a.txt", "missing.txt"] }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: { path: string; ok: boolean; errorCode?: string }[] };
+    expect(body.results).toEqual([
+      { path: "a.txt", ok: true },
+      { path: "missing.txt", ok: false, errorCode: "NOT_FOUND" },
+    ]);
+  });
+
+  it("空配列は 400 + INVALID_REQUEST", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      "/api/delete-bulk",
+      withAuth({ method: "POST", headers: jsonHeaders, body: JSON.stringify({ paths: [] }) }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("paths が無い body は 400 + INVALID_REQUEST", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      "/api/delete-bulk",
+      withAuth({ method: "POST", headers: jsonHeaders, body: JSON.stringify({}) }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ApiError;
+    expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+});
+
 describe("GET /api/preview", () => {
   it("画像は実際の MIME で 200 を返す", async () => {
     await writeFile(path.join(root, "a.jpg"), "fake-jpeg-bytes");

@@ -82,3 +82,17 @@ export interface SearchResponse {
   entries: SearchEntry[];
   truncated: boolean;
 }
+
+export interface BulkPathsRequest {
+  paths: string[];
+}
+
+export interface BulkDeleteResult {
+  path: string;
+  ok: boolean;
+  errorCode?: ApiErrorCode;
+}
+
+export interface BulkDeleteResponse {
+  results: BulkDeleteResult[];
+}

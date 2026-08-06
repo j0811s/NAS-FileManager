@@ -1,4 +1,4 @@
-import type { MkdirRequest, RenameRequest } from "@nas-fm/shared";
+import type { BulkPathsRequest, MkdirRequest, RenameRequest } from "@nas-fm/shared";
 import { AppError } from "../../lib/errors";
 
 export function requirePath(value: string | undefined): string {
@@ -34,4 +34,16 @@ export function parseRenameBody(value: unknown): RenameRequest {
     throw new AppError("INVALID_REQUEST", "body must be { from: string, to: string }");
   }
   return { from: value.from, to: value.to };
+}
+
+export function parseBulkPathsBody(value: unknown): BulkPathsRequest {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.paths) ||
+    value.paths.length === 0 ||
+    !value.paths.every((p) => typeof p === "string" && p !== "")
+  ) {
+    throw new AppError("INVALID_REQUEST", "body must be { paths: string[] } (non-empty)");
+  }
+  return { paths: value.paths };
 }

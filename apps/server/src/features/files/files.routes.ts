@@ -2,7 +2,12 @@ import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import { Hono } from "hono";
-import type { ListResponse, OkResponse } from "@nas-fm/shared";
+import type {
+  BulkDeleteResponse,
+  BulkDeleteResult,
+  ListResponse,
+  OkResponse,
+} from "@nas-fm/shared";
 import { classifyPreview } from "@nas-fm/shared";
 import { AppError } from "../../lib/errors";
 import { previewContentType } from "../../lib/preview-mime";
@@ -16,7 +21,13 @@ import {
   statForDownload,
   uploadFile,
 } from "./files.service";
-import { optionalPath, parseMkdirBody, parseRenameBody, requirePath } from "./files.schema";
+import {
+  optionalPath,
+  parseBulkPathsBody,
+  parseMkdirBody,
+  parseRenameBody,
+  requirePath,
+} from "./files.schema";
 import { moveToTrash } from "../trash/trash.service";
 
 function contentDisposition(filename: string): string {
@@ -135,6 +146,25 @@ export function createFilesRoutes(root: string): Hono {
     const rel = requirePath(c.req.query("path"));
     await moveToTrash(root, rel);
     const res: OkResponse = { ok: true };
+    return c.json(res);
+  });
+
+  app.post("/delete-bulk", async (c) => {
+    const { paths } = parseBulkPathsBody(await readJsonBody(() => c.req.json()));
+    const results: BulkDeleteResult[] = [];
+    for (const p of paths) {
+      try {
+        await moveToTrash(root, p);
+        results.push({ path: p, ok: true });
+      } catch (err) {
+        results.push({
+          path: p,
+          ok: false,
+          errorCode: err instanceof AppError ? err.code : "INTERNAL",
+        });
+      }
+    }
+    const res: BulkDeleteResponse = { results };
     return c.json(res);
   });
 
