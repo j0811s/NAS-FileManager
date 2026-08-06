@@ -1,5 +1,6 @@
 import type {
   AuthStatus,
+  BulkDeleteResponse,
   DiskUsageResponse,
   ListResponse,
   SearchResponse,
@@ -59,6 +60,33 @@ export const api = {
 
   async remove(path: string): Promise<void> {
     await request(`/api/delete?path=${encodeURIComponent(path)}`, { method: "DELETE" });
+  },
+
+  async deleteBulk(paths: string[]): Promise<BulkDeleteResponse> {
+    const res = await request("/api/delete-bulk", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ paths }),
+    });
+    return (await res.json()) as BulkDeleteResponse;
+  },
+
+  downloadBulk(paths: string[]): void {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/download-bulk";
+    form.target = "_blank";
+    form.style.display = "none";
+    for (const p of paths) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "paths";
+      input.value = p;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
   },
 
   async listTrash(): Promise<TrashListResponse> {

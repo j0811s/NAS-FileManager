@@ -88,3 +88,48 @@ describe("api.login / logout / me", () => {
     expect(await api.me()).toEqual({ authenticated: true });
   });
 });
+
+describe("api.deleteBulk", () => {
+  it("paths を JSON body で POST し結果を返す", async () => {
+    mockFetch(200, { results: [{ path: "a.txt", ok: true }] });
+    const res = await api.deleteBulk(["a.txt"]);
+    expect(res).toEqual({ results: [{ path: "a.txt", ok: true }] });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/delete-bulk",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ paths: ["a.txt"] }) }),
+    );
+  });
+
+  it("失敗時は ApiRequestError", async () => {
+    mockFetch(400, { error: { code: "INVALID_REQUEST", message: "x" } });
+    await expect(api.deleteBulk([])).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+  });
+});
+
+describe("api.downloadBulk", () => {
+  it("paths ごとの hidden input を持つ form を組み立てて POST 送信する", () => {
+    let capturedForm: HTMLFormElement | undefined;
+    const submitSpy = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    const createElementSpy = vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === "form") {
+        capturedForm = el as HTMLFormElement;
+        (el as HTMLFormElement).submit = submitSpy;
+      }
+      return el;
+    });
+
+    api.downloadBulk(["a.txt", "sub/b.txt"]);
+
+    expect(capturedForm?.method).toBe("post");
+    expect(capturedForm?.action).toContain("/api/download-bulk");
+    expect(capturedForm?.target).toBe("_blank");
+    const values = Array.from(capturedForm?.querySelectorAll('input[name="paths"]') ?? []).map(
+      (el) => (el as HTMLInputElement).value,
+    );
+    expect(values).toEqual(["a.txt", "sub/b.txt"]);
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+    createElementSpy.mockRestore();
+  });
+});
