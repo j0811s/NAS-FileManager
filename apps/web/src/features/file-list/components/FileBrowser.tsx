@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
 import { classifyPreview } from "@nas-fm/shared";
-import { FolderPlus, LayoutGrid, List } from "lucide-react";
+import { FolderPlus, LayoutGrid, List, MousePointerClick } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UploadDropzone } from "@/features/upload";
 import { api } from "@/lib/api";
@@ -12,16 +12,17 @@ import { type SortDir, type SortKey, sortEntries } from "../sort";
 import { MkdirDialog } from "../dialogs/MkdirDialog";
 import { RenameDialog } from "../dialogs/RenameDialog";
 import { DeleteDialog } from "../dialogs/DeleteDialog";
+import { BulkDeleteDialog } from "../dialogs/BulkDeleteDialog";
 import { MoveDialog } from "../dialogs/MoveDialog";
 import { PreviewDialog } from "../dialogs/PreviewDialog";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { FileTable } from "./FileTable";
 import { FileGrid } from "./FileGrid";
 import { SortMenu } from "./SortMenu";
+import { BulkActionToolbar } from "./BulkActionToolbar";
 
 type ViewMode = "table" | "grid";
 const VIEW_MODE_KEY = "nas-fm:view-mode";
-const EMPTY_SELECTION = new Set<string>();
 
 function loadViewMode(): ViewMode {
   return localStorage.getItem(VIEW_MODE_KEY) === "table" ? "table" : "grid";
@@ -36,9 +37,12 @@ export function FileBrowser() {
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileEntry | null>(null);
   const [previewTarget, setPreviewTarget] = useState<FileEntry | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(loadViewMode);
   const { data, isLoading, isError, refetch } = useFileList(path);
-  const { mkdir, rename, remove } = useFileMutations(path);
+  const { mkdir, rename, remove, bulkDelete } = useFileMutations(path);
 
   const sorted = useMemo(
     () => (data ? sortEntries(data.entries, sortKey, sortDir) : []),
@@ -60,6 +64,34 @@ export function FileBrowser() {
     localStorage.setItem(VIEW_MODE_KEY, mode);
   }
   const rel = useCallback((name: string) => (path ? `${path}/${name}` : name), [path]);
+
+  useEffect(() => {
+    setSelectMode(false);
+    setSelectedNames(new Set());
+  }, [path]);
+
+  function toggleSelect(name: string) {
+    setSelectedNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelectedNames((prev) =>
+      prev.size === sorted.length ? new Set() : new Set(sorted.map((e) => e.name)),
+    );
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedNames(new Set());
+  }
+  function confirmBulkDelete() {
+    bulkDelete.mutate([...selectedNames].map(rel));
+    setBulkDeleteOpen(false);
+    exitSelectMode();
+  }
 
   const previewableEntries = useMemo(
     () => sorted.filter((entry) => entry.type !== "dir"),
@@ -95,34 +127,52 @@ export function FileBrowser() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {viewMode === "grid" && (
-          <SortMenu
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSortKeyChange={setSortKey}
-            onSortDirChange={setSortDir}
+        {selectMode ? (
+          <BulkActionToolbar
+            selectedCount={selectedNames.size}
+            totalCount={sorted.length}
+            onSelectAll={toggleSelectAll}
+            onExit={exitSelectMode}
+            onDelete={() => setBulkDeleteOpen(true)}
+            onDownload={() => api.downloadBulk([...selectedNames].map(rel))}
+            pending={bulkDelete.isPending}
           />
+        ) : (
+          <>
+            {viewMode === "grid" && (
+              <SortMenu
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onSortKeyChange={setSortKey}
+                onSortDirChange={setSortDir}
+              />
+            )}
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              aria-label="グリッド表示"
+              onClick={() => changeViewMode("grid")}
+            >
+              <LayoutGrid size={16} />
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="icon"
+              aria-label="テーブル表示"
+              onClick={() => changeViewMode("table")}
+            >
+              <List size={16} />
+            </Button>
+            <Button size="sm" onClick={() => setMkdirOpen(true)}>
+              <FolderPlus size={16} className="mr-2" />
+              新しいフォルダ
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setSelectMode(true)}>
+              <MousePointerClick size={16} className="mr-2" />
+              選択
+            </Button>
+          </>
         )}
-        <Button
-          variant={viewMode === "grid" ? "secondary" : "ghost"}
-          size="icon"
-          aria-label="グリッド表示"
-          onClick={() => changeViewMode("grid")}
-        >
-          <LayoutGrid size={16} />
-        </Button>
-        <Button
-          variant={viewMode === "table" ? "secondary" : "ghost"}
-          size="icon"
-          aria-label="テーブル表示"
-          onClick={() => changeViewMode("table")}
-        >
-          <List size={16} />
-        </Button>
-        <Button size="sm" onClick={() => setMkdirOpen(true)}>
-          <FolderPlus size={16} className="mr-2" />
-          新しいフォルダ
-        </Button>
       </div>
 
       <UploadDropzone path={path} />
@@ -150,9 +200,9 @@ export function FileBrowser() {
           onRename={setRenameTarget}
           onDelete={setDeleteTarget}
           onMove={setMoveTarget}
-          selectMode={false}
-          selectedNames={EMPTY_SELECTION}
-          onToggleSelect={() => {}}
+          selectMode={selectMode}
+          selectedNames={selectedNames}
+          onToggleSelect={toggleSelect}
         />
       )}
       {data && viewMode === "grid" && (
@@ -164,9 +214,9 @@ export function FileBrowser() {
           onRename={setRenameTarget}
           onDelete={setDeleteTarget}
           onMove={setMoveTarget}
-          selectMode={false}
-          selectedNames={EMPTY_SELECTION}
-          onToggleSelect={() => {}}
+          selectMode={selectMode}
+          selectedNames={selectedNames}
+          onToggleSelect={toggleSelect}
         />
       )}
 
@@ -192,6 +242,12 @@ export function FileBrowser() {
           if (deleteTarget) remove.mutate(rel(deleteTarget.name));
           setDeleteTarget(null);
         }}
+      />
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        targetCount={selectedNames.size}
+        onConfirm={confirmBulkDelete}
       />
       <MoveDialog
         open={moveTarget !== null}

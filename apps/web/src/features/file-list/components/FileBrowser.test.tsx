@@ -349,4 +349,119 @@ describe("FileBrowser", () => {
       expect(prefetchedUrls).not.toContain(api.previewUrl("photo.heic"));
     });
   });
+
+  describe("複数選択・一括操作", () => {
+    it("「選択」ボタンで選択モードに入りツールバーが表示される", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [
+          { name: "a.txt", size: 1, mtime: 0, type: "file" },
+          { name: "b.txt", size: 1, mtime: 0, type: "file" },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+      expect(screen.getByText("0件選択中")).toBeInTheDocument();
+    });
+
+    it("チェックボックスで選択すると件数が増え、全選択チェックボックスで全件選択・解除できる", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [
+          { name: "a.txt", size: 1, mtime: 0, type: "file" },
+          { name: "b.txt", size: 1, mtime: 0, type: "file" },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "a.txt を選択" }));
+      expect(screen.getByText("1件選択中")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "全選択" }));
+      expect(screen.getByText("2件選択中")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "全選択" }));
+      expect(screen.getByText("0件選択中")).toBeInTheDocument();
+    });
+
+    it("削除ボタン→確認ダイアログ→確定で bulkDelete を呼び選択モードを終了する", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
+      });
+      const deleteBulk = vi.spyOn(api, "deleteBulk").mockResolvedValue({
+        results: [{ path: "a.txt", ok: true }],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "a.txt を選択" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "削除" }));
+      const dialog = await screen.findByRole("alertdialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "削除する" }));
+
+      await waitFor(() => expect(deleteBulk).toHaveBeenCalledWith(["a.txt"]));
+      expect(screen.queryByText(/件選択中/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "選択" })).toBeInTheDocument();
+    });
+
+    it("ダウンロードボタンで api.downloadBulk を呼び、選択モードは維持される", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
+      });
+      const downloadBulk = vi.spyOn(api, "downloadBulk").mockImplementation(() => {});
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "a.txt を選択" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "ダウンロード" }));
+
+      expect(downloadBulk).toHaveBeenCalledWith(["a.txt"]);
+      expect(screen.getByText("1件選択中")).toBeInTheDocument();
+    });
+
+    it("フォルダ移動(hashchange)で選択モード・選択状態がリセットされる", async () => {
+      vi.spyOn(api, "list").mockImplementation(async (path) => ({
+        path,
+        entries:
+          path === ""
+            ? [{ name: "a.txt", size: 1, mtime: 0, type: "file" as const }]
+            : [{ name: "inner.txt", size: 1, mtime: 0, type: "file" as const }],
+      }));
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "a.txt を選択" }));
+      expect(screen.getByText("1件選択中")).toBeInTheDocument();
+
+      act(() => {
+        window.location.hash = "#/docs";
+        window.dispatchEvent(new Event("hashchange"));
+      });
+
+      await waitFor(() => expect(screen.getByText("inner.txt")).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: "選択" })).toBeInTheDocument();
+      expect(screen.queryByText(/件選択中/)).not.toBeInTheDocument();
+    });
+
+    it("選択解除ボタンで選択モードを終了する", async () => {
+      vi.spyOn(api, "list").mockResolvedValue({
+        path: "",
+        entries: [{ name: "a.txt", size: 1, mtime: 0, type: "file" }],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+      await userEvent.click(screen.getByRole("button", { name: "選択解除" }));
+      expect(screen.getByRole("button", { name: "選択" })).toBeInTheDocument();
+      expect(screen.queryByText(/件選択中/)).not.toBeInTheDocument();
+    });
+  });
 });
