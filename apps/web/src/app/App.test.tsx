@@ -33,7 +33,7 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument(),
     );
-    await waitFor(() => expect(screen.getByText("50.0GB / 100.0GB")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("残り 50.0GB")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "ゴミ箱" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "検索" })).toBeInTheDocument();
   });

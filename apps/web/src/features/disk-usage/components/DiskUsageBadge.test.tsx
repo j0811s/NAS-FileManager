@@ -26,7 +26,7 @@ describe("DiskUsageBadge", () => {
       free: 50 * 1024 ** 3,
     });
     render(<DiskUsageBadge />, { wrapper });
-    const el = await screen.findByText("50.0GB / 100.0GB");
+    const el = await screen.findByText("残り 50.0GB");
     expect(el.className).toContain("text-muted-foreground");
     expect(el.className).not.toContain("text-destructive");
   });
@@ -38,7 +38,7 @@ describe("DiskUsageBadge", () => {
       free: 5 * 1024 ** 3,
     });
     render(<DiskUsageBadge />, { wrapper });
-    const el = await screen.findByText("95.0GB / 100.0GB");
+    const el = await screen.findByText("残り 5.0GB");
     expect(el.className).toContain("text-destructive");
   });
 });
