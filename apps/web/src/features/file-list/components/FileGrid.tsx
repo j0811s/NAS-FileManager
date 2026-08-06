@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@nas-fm/shared";
 import { classifyPreview } from "@nas-fm/shared";
 import { File, Film, Folder, Image as ImageIcon, Play } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { RowActions } from "./RowActions";
 
@@ -83,6 +84,9 @@ export function FileGrid({
   onRename,
   onDelete,
   onMove,
+  selectMode,
+  selectedNames,
+  onToggleSelect,
 }: {
   entries: FileEntry[];
   path: string;
@@ -91,6 +95,9 @@ export function FileGrid({
   onRename: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
   onMove: (entry: FileEntry) => void;
+  selectMode: boolean;
+  selectedNames: Set<string>;
+  onToggleSelect: (name: string) => void;
 }) {
   const rel = (name: string) => (path ? `${path}/${name}` : name);
   return (
@@ -99,7 +106,13 @@ export function FileGrid({
         <div
           key={entry.name}
           className="relative cursor-pointer overflow-hidden rounded-lg border"
-          onClick={() => (entry.type === "dir" ? onOpenDir(entry.name) : onPreview(entry))}
+          onClick={() =>
+            selectMode
+              ? onToggleSelect(entry.name)
+              : entry.type === "dir"
+                ? onOpenDir(entry.name)
+                : onPreview(entry)
+          }
         >
           <div className="flex aspect-square items-center justify-center bg-muted">
             {entry.type === "dir" ? (
@@ -111,19 +124,31 @@ export function FileGrid({
           <p className="truncate px-2 py-1.5 text-sm" title={entry.name}>
             {entry.name}
           </p>
-          <div
-            className="absolute top-1 right-1 rounded-md bg-background/80"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <RowActions
-              entry={entry}
-              path={path}
-              onPreview={onPreview}
-              onRename={onRename}
-              onDelete={onDelete}
-              onMove={onMove}
-            />
-          </div>
+          {!selectMode && (
+            <div
+              className="absolute top-1 right-1 rounded-md bg-background/80"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <RowActions
+                entry={entry}
+                path={path}
+                onPreview={onPreview}
+                onRename={onRename}
+                onDelete={onDelete}
+                onMove={onMove}
+              />
+            </div>
+          )}
+          {selectMode && (
+            <div className="absolute top-1 left-1 z-10" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                aria-label={`${entry.name} を選択`}
+                checked={selectedNames.has(entry.name)}
+                onCheckedChange={() => onToggleSelect(entry.name)}
+                className="bg-background"
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>

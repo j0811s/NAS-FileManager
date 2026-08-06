@@ -1,6 +1,7 @@
 import type { FileEntry } from "@nas-fm/shared";
 import { File, Folder } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -31,6 +32,9 @@ export function FileTable({
   onRename,
   onDelete,
   onMove,
+  selectMode,
+  selectedNames,
+  onToggleSelect,
 }: {
   entries: FileEntry[];
   sortKey: SortKey;
@@ -42,12 +46,16 @@ export function FileTable({
   onRename: (entry: FileEntry) => void;
   onDelete: (entry: FileEntry) => void;
   onMove: (entry: FileEntry) => void;
+  selectMode: boolean;
+  selectedNames: Set<string>;
+  onToggleSelect: (name: string) => void;
 }) {
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "");
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          {selectMode && <TableHead className="w-10" />}
           <TableHead>
             <Button variant="ghost" size="sm" onClick={() => onSortChange("name")}>
               名前{arrow("name")}
@@ -71,8 +79,23 @@ export function FileTable({
           <TableRow
             key={entry.name}
             className="cursor-pointer"
-            onClick={() => (entry.type === "dir" ? onOpenDir(entry.name) : onPreview(entry))}
+            onClick={() =>
+              selectMode
+                ? onToggleSelect(entry.name)
+                : entry.type === "dir"
+                  ? onOpenDir(entry.name)
+                  : onPreview(entry)
+            }
           >
+            {selectMode && (
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  aria-label={`${entry.name} を選択`}
+                  checked={selectedNames.has(entry.name)}
+                  onCheckedChange={() => onToggleSelect(entry.name)}
+                />
+              </TableCell>
+            )}
             <TableCell>
               <span className="flex items-center gap-2">
                 {entry.type === "dir" ? <Folder size={16} /> : <File size={16} />}
@@ -82,14 +105,16 @@ export function FileTable({
             <TableCell>{formatSize(entry)}</TableCell>
             <TableCell>{new Date(entry.mtime).toLocaleString("ja-JP")}</TableCell>
             <TableCell onClick={(e) => e.stopPropagation()}>
-              <RowActions
-                entry={entry}
-                path={path}
-                onPreview={onPreview}
-                onRename={onRename}
-                onDelete={onDelete}
-                onMove={onMove}
-              />
+              {!selectMode && (
+                <RowActions
+                  entry={entry}
+                  path={path}
+                  onPreview={onPreview}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  onMove={onMove}
+                />
+              )}
             </TableCell>
           </TableRow>
         ))}

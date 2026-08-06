@@ -21,6 +21,7 @@ import { SortMenu } from "./SortMenu";
 
 type ViewMode = "table" | "grid";
 const VIEW_MODE_KEY = "nas-fm:view-mode";
+const EMPTY_SELECTION = new Set<string>();
 
 function loadViewMode(): ViewMode {
   return localStorage.getItem(VIEW_MODE_KEY) === "table" ? "table" : "grid";
@@ -149,6 +150,9 @@ export function FileBrowser() {
           onRename={setRenameTarget}
           onDelete={setDeleteTarget}
           onMove={setMoveTarget}
+          selectMode={false}
+          selectedNames={EMPTY_SELECTION}
+          onToggleSelect={() => {}}
         />
       )}
       {data && viewMode === "grid" && (
@@ -160,6 +164,9 @@ export function FileBrowser() {
           onRename={setRenameTarget}
           onDelete={setDeleteTarget}
           onMove={setMoveTarget}
+          selectMode={false}
+          selectedNames={EMPTY_SELECTION}
+          onToggleSelect={() => {}}
         />
       )}
 

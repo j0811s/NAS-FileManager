@@ -22,6 +22,9 @@ function renderGrid(overrides: Partial<Parameters<typeof FileGrid>[0]> = {}) {
       onRename={() => {}}
       onDelete={() => {}}
       onMove={() => {}}
+      selectMode={false}
+      selectedNames={new Set<string>()}
+      onToggleSelect={() => {}}
       {...overrides}
     />,
   );
@@ -192,9 +195,55 @@ describe("FileGrid", () => {
         onRename={() => {}}
         onDelete={() => {}}
         onMove={() => {}}
+        selectMode={false}
+        selectedNames={new Set<string>()}
+        onToggleSelect={() => {}}
       />,
     );
 
     expect(screen.getByAltText("cat.jpg")).toBeInTheDocument();
+  });
+
+  it("selectMode時は各カードにチェックボックスを表示する", () => {
+    renderGrid({ selectMode: true });
+    expect(screen.getByRole("checkbox", { name: "sub を選択" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "doc.pdf を選択" })).toBeInTheDocument();
+  });
+
+  it("selectMode時でなければチェックボックスを表示しない", () => {
+    renderGrid({ selectMode: false });
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("selectMode時はカードクリックで onToggleSelect のみ呼ぶ", async () => {
+    const onToggleSelect = vi.fn();
+    const onOpenDir = vi.fn();
+    renderGrid({ selectMode: true, onToggleSelect, onOpenDir });
+    await userEvent.click(screen.getByText("sub"));
+    expect(onToggleSelect).toHaveBeenCalledWith("sub");
+    expect(onOpenDir).not.toHaveBeenCalled();
+  });
+
+  it("チェックボックスクリックで onToggleSelect のみ呼ぶ(開く/プレビューは呼ばれない)", async () => {
+    const onToggleSelect = vi.fn();
+    const onOpenDir = vi.fn();
+    const onPreview = vi.fn();
+    renderGrid({ selectMode: true, onToggleSelect, onOpenDir, onPreview });
+    await userEvent.click(screen.getByRole("checkbox", { name: "sub を選択" }));
+    expect(onToggleSelect).toHaveBeenCalledTimes(1);
+    expect(onToggleSelect).toHaveBeenCalledWith("sub");
+    expect(onOpenDir).not.toHaveBeenCalled();
+    expect(onPreview).not.toHaveBeenCalled();
+  });
+
+  it("選択済みのカードはチェックボックスがチェックされる", () => {
+    renderGrid({ selectMode: true, selectedNames: new Set(["doc.pdf"]) });
+    expect(screen.getByRole("checkbox", { name: "doc.pdf を選択" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "sub を選択" })).not.toBeChecked();
+  });
+
+  it("selectMode時は操作メニューを表示しない", () => {
+    renderGrid({ selectMode: true });
+    expect(screen.queryByRole("button", { name: "操作メニュー" })).not.toBeInTheDocument();
   });
 });
