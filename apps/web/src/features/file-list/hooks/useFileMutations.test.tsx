@@ -69,4 +69,40 @@ describe("useFileMutations", () => {
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["disk-usage"] }),
     );
   });
+
+  it("bulkDelete: 全成功時は成功トーストを出しinvalidateする", async () => {
+    vi.spyOn(api, "deleteBulk").mockResolvedValue({
+      results: [
+        { path: "docs/a.txt", ok: true },
+        { path: "docs/b.txt", ok: true },
+      ],
+    });
+    const success = vi.spyOn(toast, "success").mockReturnValue("" as never);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useFileMutations("docs"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    result.current.bulkDelete.mutate(["docs/a.txt", "docs/b.txt"]);
+    await waitFor(() => expect(success).toHaveBeenCalledWith("2件削除しました"));
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["list", "docs"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["disk-usage"] });
+  });
+
+  it("bulkDelete: 一部失敗時は失敗件数を含むエラートーストを出す", async () => {
+    vi.spyOn(api, "deleteBulk").mockResolvedValue({
+      results: [
+        { path: "docs/a.txt", ok: true },
+        { path: "docs/b.txt", ok: false, errorCode: "NOT_FOUND" },
+      ],
+    });
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
+    result.current.bulkDelete.mutate(["docs/a.txt", "docs/b.txt"]);
+    await waitFor(() => expect(error).toHaveBeenCalledWith("1件削除しました（1件失敗）"));
+  });
 });

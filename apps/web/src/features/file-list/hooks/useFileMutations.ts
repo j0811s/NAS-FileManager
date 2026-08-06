@@ -46,5 +46,21 @@ export function useFileMutations(path: string) {
     onError: onErrorAndRefresh,
   });
 
-  return { mkdir, rename, remove };
+  const bulkDelete = useMutation({
+    mutationFn: (paths: string[]) => api.deleteBulk(paths),
+    onSuccess: (res) => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["disk-usage"] });
+      const failed = res.results.filter((r) => !r.ok).length;
+      const succeeded = res.results.length - failed;
+      if (failed > 0) {
+        toast.error(`${succeeded}件削除しました（${failed}件失敗）`);
+      } else {
+        toast.success(`${succeeded}件削除しました`);
+      }
+    },
+    onError: onErrorAndRefresh,
+  });
+
+  return { mkdir, rename, remove, bulkDelete };
 }
