@@ -53,10 +53,12 @@ export function useFileMutations(path: string) {
       qc.invalidateQueries({ queryKey: ["disk-usage"] });
       const failed = res.results.filter((r) => !r.ok).length;
       const succeeded = res.results.length - failed;
-      if (failed > 0) {
-        toast.error(`${succeeded}件削除しました（${failed}件失敗）`);
-      } else {
+      if (failed === 0) {
         toast.success(`${succeeded}件削除しました`);
+      } else if (succeeded === 0) {
+        toast.error(`削除に失敗しました（${failed}件）`);
+      } else {
+        toast.error(`${succeeded}件削除しました（${failed}件失敗）`);
       }
     },
     onError: onErrorAndRefresh,

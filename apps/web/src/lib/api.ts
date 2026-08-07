@@ -71,6 +71,9 @@ export const api = {
     return (await res.json()) as BulkDeleteResponse;
   },
 
+  // fetch+blob()にしないこと: 大量選択時にzip全体をメモリに溜めてから保存が始まる形になり、
+  // iPhone Safariでのタブクラッシュや保存開始までの進捗不可視を招く。非表示フォームのPOST送信
+  // によりブラウザ自身にネイティブなストリーミングダウンロードをさせる
   downloadBulk(paths: string[]): void {
     const form = document.createElement("form");
     form.method = "POST";

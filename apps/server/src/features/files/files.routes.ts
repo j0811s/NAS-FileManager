@@ -171,6 +171,10 @@ export function createFilesRoutes(root: string): Hono {
     return c.json(res);
   });
 
+  // 大容量選択（数百MB〜数GB）でもブラウザメモリを圧迫しないよう、JSON+fetchではなく
+  // フォーム送信（application/x-www-form-urlencoded）で受ける設計にしている。
+  // クライアント側をfetch+blob()化に戻すと、iPhone Safariでのタブクラッシュや
+  // 保存開始までの進捗不可視という問題を再現するため、安易に変更しないこと。
   app.post("/download-bulk", async (c) => {
     const { paths } = parseBulkPathsForm(await c.req.parseBody({ all: true }));
     // zip ストリーミング開始前に全パスを検証し、トラバーサル等は 400 として返す

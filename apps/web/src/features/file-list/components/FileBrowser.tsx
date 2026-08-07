@@ -88,9 +88,10 @@ export function FileBrowser() {
     setSelectedNames(new Set());
   }
   function confirmBulkDelete() {
-    bulkDelete.mutate([...selectedNames].map(rel));
+    bulkDelete.mutate([...selectedNames].map(rel), {
+      onSuccess: () => exitSelectMode(),
+    });
     setBulkDeleteOpen(false);
-    exitSelectMode();
   }
 
   const previewableEntries = useMemo(

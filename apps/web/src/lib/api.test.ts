@@ -10,6 +10,7 @@ function mockFetch(status: number, body: unknown): void {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("api.list", () => {
@@ -129,6 +130,8 @@ describe("api.downloadBulk", () => {
       (el) => (el as HTMLInputElement).value,
     );
     expect(values).toEqual(["a.txt", "sub/b.txt"]);
+    const formEntries = [...new FormData(capturedForm!)].map(([k, v]) => [k, String(v)]);
+    expect(new URLSearchParams(formEntries).toString()).toBe("paths=a.txt&paths=sub%2Fb.txt");
     expect(submitSpy).toHaveBeenCalledTimes(1);
     createElementSpy.mockRestore();
   });

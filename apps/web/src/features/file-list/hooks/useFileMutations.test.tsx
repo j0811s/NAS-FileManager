@@ -105,4 +105,17 @@ describe("useFileMutations", () => {
     result.current.bulkDelete.mutate(["docs/a.txt", "docs/b.txt"]);
     await waitFor(() => expect(error).toHaveBeenCalledWith("1件削除しました（1件失敗）"));
   });
+
+  it("bulkDelete: 全失敗時は「削除に失敗しました」のエラートーストを出す", async () => {
+    vi.spyOn(api, "deleteBulk").mockResolvedValue({
+      results: [
+        { path: "docs/a.txt", ok: false, errorCode: "NOT_FOUND" },
+        { path: "docs/b.txt", ok: false, errorCode: "NOT_FOUND" },
+      ],
+    });
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
+    result.current.bulkDelete.mutate(["docs/a.txt", "docs/b.txt"]);
+    await waitFor(() => expect(error).toHaveBeenCalledWith("削除に失敗しました（2件）"));
+  });
 });
