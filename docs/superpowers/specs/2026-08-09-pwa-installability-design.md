@@ -59,7 +59,7 @@
 ### 3. `index.html` への追加
 
 - `<link rel="manifest" href="/manifest.webmanifest">`
-- `<meta name="theme-color">` をライト/ダークで出し分け（`media="(prefers-color-scheme: dark)"` の2本）
+- `<meta name="theme-color" content="#ffffff">`（1本のみ。`next-themes` の `ThemeProvider` は未配線で `.dark` クラスが付与されることが無く、実際には常にライト表示のため、ダーク用の出し分けは今は付けない。ダークモード配線時に追加すればよい）
 - `<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">`
 - `<meta name="apple-mobile-web-app-capable" content="yes">`
 - `<meta name="apple-mobile-web-app-status-bar-style" content="default">`
@@ -73,7 +73,7 @@
 
 ### 5. ドキュメント更新
 
-`docs/roadmap.md` に Phase として追記する。iOS 実機確認が未了の場合はその旨を明記し、「対応完了」とは書かない。
+`docs/roadmap.md` は spec.md 由来の Phase 1〜5 のみを追跡しており、spec.md 範囲外で後から追加された機能（search / trash / bulk-selection / upload-queue-tray 等）はいずれも roadmap.md に追記されていない（実績確認済み）。本機能も同様の扱いとし、roadmap.md は更新しない。本設計docとコミット履歴が記録として機能する。iOS 実機確認が未了の場合はコミットメッセージや PR 上で「対応完了」と書かず、確認待ちである旨を明記する。
 
 ## テスト方針
 
