@@ -3,6 +3,12 @@
 CLAUDE.local.md
 .superpowers/
 .playwright-mcp/
+# share-claude から配布される（編集は share-claude 側で行う）
+.claude/skills/
+.claude/hooks/
+.claude/rules/
+.claude/settings.json
+CLAUDE.md
 
 # Logs
 logs
