@@ -410,6 +410,42 @@ describe("FileBrowser", () => {
       expect(screen.getByRole("button", { name: "選択" })).toBeInTheDocument();
     });
 
+    it("移動ボタン→移動先を選んで確定すると moveBulk を呼び選択モードを終了する", async () => {
+      vi.spyOn(api, "list").mockImplementation(async (p) => ({
+        path: p,
+        entries:
+          p === ""
+            ? [
+                { name: "docs", size: 0, mtime: 0, type: "dir" as const },
+                { name: "a.txt", size: 1, mtime: 0, type: "file" as const },
+                { name: "b.txt", size: 1, mtime: 0, type: "file" as const },
+              ]
+            : [],
+      }));
+      const moveBulk = vi.spyOn(api, "moveBulk").mockResolvedValue({
+        results: [
+          { path: "a.txt", ok: true },
+          { path: "b.txt", ok: true },
+        ],
+      });
+      renderWithClient(<FileBrowser />);
+      await waitFor(() => expect(screen.getByText("a.txt")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: "選択" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "a.txt を選択" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "b.txt を選択" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "移動" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText("2件を移動")).toBeInTheDocument();
+      await userEvent.click(await within(dialog).findByText("docs"));
+      const moveHere = within(dialog).getByRole("button", { name: "ここに移動" });
+      await waitFor(() => expect(moveHere).not.toBeDisabled());
+      await userEvent.click(moveHere);
+
+      await waitFor(() => expect(moveBulk).toHaveBeenCalledWith(["a.txt", "b.txt"], "docs"));
+      await waitFor(() => expect(screen.queryByText(/件選択中/)).not.toBeInTheDocument());
+    });
+
     it("ダウンロードボタンで api.downloadBulk を呼び、選択モードは維持される", async () => {
       vi.spyOn(api, "list").mockResolvedValue({
         path: "",

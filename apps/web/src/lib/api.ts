@@ -1,6 +1,7 @@
 import type {
   AuthStatus,
   BulkDeleteResponse,
+  BulkMoveResponse,
   DiskUsageResponse,
   ListResponse,
   SearchResponse,
@@ -69,6 +70,15 @@ export const api = {
       body: JSON.stringify({ paths }),
     });
     return (await res.json()) as BulkDeleteResponse;
+  },
+
+  async moveBulk(paths: string[], dest: string): Promise<BulkMoveResponse> {
+    const res = await request("/api/move-bulk", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ paths, dest }),
+    });
+    return (await res.json()) as BulkMoveResponse;
   },
 
   // fetch+blob()にしないこと: 大量選択時にzip全体をメモリに溜めてから保存が始まる形になり、

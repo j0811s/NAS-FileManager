@@ -15,13 +15,13 @@ import { Breadcrumbs } from "../components/Breadcrumbs";
 export function MoveDialog({
   open,
   onOpenChange,
-  entry,
+  entries,
   currentPath,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  entry: FileEntry | null;
+  entries: FileEntry[];
   currentPath: string;
   onSubmit: (destPath: string) => void;
 }) {
@@ -31,10 +31,13 @@ export function MoveDialog({
   }, [open, currentPath]);
 
   const { data, isLoading } = useFileList(browsePath);
+  // 移動対象のフォルダは現在地の一覧から隠す（ここから辿れなくなるので、自分の配下を移動先に選べない）
+  const movingNames = new Set(entries.map((e) => e.name));
   const dirs = (data?.entries ?? []).filter(
-    (e) => e.type === "dir" && !(browsePath === currentPath && entry?.name === e.name),
+    (e) => e.type === "dir" && !(browsePath === currentPath && movingNames.has(e.name)),
   );
-  const canMoveHere = browsePath !== currentPath;
+  const title = entries.length === 1 ? `「${entries[0].name}」を移動` : `${entries.length}件を移動`;
+  const canMoveHere = entries.length > 0 && browsePath !== currentPath;
 
   function openDir(name: string) {
     setBrowsePath(browsePath ? `${browsePath}/${name}` : name);
@@ -44,7 +47,7 @@ export function MoveDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>「{entry?.name ?? ""}」を移動</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
           <Breadcrumbs path={browsePath} onNavigate={setBrowsePath} />

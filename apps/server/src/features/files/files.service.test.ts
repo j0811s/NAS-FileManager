@@ -1,10 +1,10 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdmZip from "adm-zip";
 import { AppError } from "../../lib/errors";
 import {
@@ -12,6 +12,7 @@ import {
   createSelectionZipStream,
   listDir,
   makeDir,
+  moveEntries,
   renamePath,
   resolveDownloadEntry,
   statForDownload,
@@ -135,6 +136,37 @@ describe("renamePath", () => {
     await mkdir(path.join(root, "dir2"));
     await renamePath(root, "dir", "dir2/dir");
     expect(await readdir(path.join(root, "dir2"))).toEqual(["dir"]);
+  });
+});
+
+describe("moveEntries", () => {
+  it("想定外の fs エラー（INTERNAL）はその項目を失敗にし、サーバログに残す", async () => {
+    await mkdir(path.join(root, "ro"));
+    await writeFile(path.join(root, "ro", "a.txt"), "a");
+    await chmod(path.join(root, "ro"), 0o555); // 書き込み不可 → rename が EACCES
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const results = await moveEntries(root, ["ro/a.txt"], "");
+      expect(results).toEqual([{ path: "ro/a.txt", ok: false, errorCode: "INTERNAL" }]);
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+      await chmod(path.join(root, "ro"), 0o755);
+    }
+  });
+
+  it("想定内のエラー（CONFLICT 等）はログに残さない", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await mkdir(path.join(root, "dest"));
+    await writeFile(path.join(root, "dest", "a.txt"), "x");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const results = await moveEntries(root, ["a.txt"], "dest");
+      expect(results).toEqual([{ path: "a.txt", ok: false, errorCode: "CONFLICT" }]);
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
 

@@ -64,5 +64,31 @@ export function useFileMutations(path: string) {
     onError: onErrorAndRefresh,
   });
 
-  return { mkdir, rename, remove, bulkDelete };
+  const bulkMove = useMutation({
+    mutationFn: (v: { paths: string[]; dest: string }) => api.moveBulk(v.paths, v.dest),
+    onSuccess: (res) => {
+      // 移動元と移動先の両方の一覧が変わるため、一覧系をまとめて再取得する
+      qc.invalidateQueries({ queryKey: ["list"] });
+      const failures = res.results.filter((r) => !r.ok);
+      const failed = failures.length;
+      const succeeded = res.results.length - failed;
+      // 失敗理由が 1 種類なら添える（同名衝突など、利用者が対処できるように）。複数種類なら件数のみ
+      const codes = new Set(failures.map((r) => r.errorCode ?? "INTERNAL"));
+      const reason = codes.size === 1 ? `: ${errorMessage([...codes][0])}` : "";
+      if (failed === 0) {
+        toast.success(`${succeeded}件移動しました`);
+      } else if (succeeded === 0) {
+        toast.error(`移動に失敗しました（${failed}件${reason}）`);
+      } else {
+        toast.error(`${succeeded}件移動しました（${failed}件失敗${reason}）`);
+      }
+    },
+    onError: (err) => {
+      toastError(err);
+      // リクエスト途中の失敗ではサーバ側で一部が移動済みの可能性があるため、移動先も含めて再取得する
+      qc.invalidateQueries({ queryKey: ["list"] });
+    },
+  });
+
+  return { mkdir, rename, remove, bulkDelete, bulkMove };
 }

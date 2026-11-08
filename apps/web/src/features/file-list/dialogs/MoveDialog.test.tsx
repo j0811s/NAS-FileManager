@@ -20,7 +20,7 @@ describe("MoveDialog", () => {
       <MoveDialog
         open
         onOpenChange={() => {}}
-        entry={{ name: "a.txt", size: 1, mtime: 0, type: "file" }}
+        entries={[{ name: "a.txt", size: 1, mtime: 0, type: "file" }]}
         currentPath=""
         onSubmit={() => {}}
       />,
@@ -40,7 +40,7 @@ describe("MoveDialog", () => {
       <MoveDialog
         open
         onOpenChange={() => {}}
-        entry={{ name: "a.txt", size: 1, mtime: 0, type: "file" }}
+        entries={[{ name: "a.txt", size: 1, mtime: 0, type: "file" }]}
         currentPath=""
         onSubmit={() => {}}
       />,
@@ -61,7 +61,7 @@ describe("MoveDialog", () => {
       <MoveDialog
         open
         onOpenChange={() => {}}
-        entry={{ name: "self", size: 0, mtime: 0, type: "dir" }}
+        entries={[{ name: "self", size: 0, mtime: 0, type: "dir" }]}
         currentPath=""
         onSubmit={() => {}}
       />,
@@ -76,7 +76,7 @@ describe("MoveDialog", () => {
       <MoveDialog
         open
         onOpenChange={() => {}}
-        entry={{ name: "a.txt", size: 1, mtime: 0, type: "file" }}
+        entries={[{ name: "a.txt", size: 1, mtime: 0, type: "file" }]}
         currentPath=""
         onSubmit={() => {}}
       />,
@@ -97,7 +97,7 @@ describe("MoveDialog", () => {
       <MoveDialog
         open
         onOpenChange={() => {}}
-        entry={{ name: "a.txt", size: 1, mtime: 0, type: "file" }}
+        entries={[{ name: "a.txt", size: 1, mtime: 0, type: "file" }]}
         currentPath=""
         onSubmit={onSubmit}
       />,
@@ -108,5 +108,61 @@ describe("MoveDialog", () => {
     await waitFor(() => expect(moveHere).not.toBeDisabled());
     await userEvent.click(moveHere);
     expect(onSubmit).toHaveBeenCalledWith("docs");
+  });
+
+  it("移動対象が 0 件なら、別フォルダへ移っても「ここに移動」は無効のまま", async () => {
+    vi.spyOn(api, "list").mockImplementation(async (path) => ({
+      path,
+      entries: path === "" ? [{ name: "docs", size: 0, mtime: 0, type: "dir" as const }] : [],
+    }));
+    renderWithClient(
+      <MoveDialog open onOpenChange={() => {}} entries={[]} currentPath="" onSubmit={() => {}} />,
+    );
+    await userEvent.click(await screen.findByText("docs"));
+    await waitFor(() => expect(screen.getByText("フォルダはありません")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "ここに移動" })).toBeDisabled();
+  });
+
+  it("複数件のときは件数をタイトルに表示する", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({ path: "", entries: [] });
+    renderWithClient(
+      <MoveDialog
+        open
+        onOpenChange={() => {}}
+        entries={[
+          { name: "a.txt", size: 1, mtime: 0, type: "file" },
+          { name: "b.txt", size: 1, mtime: 0, type: "file" },
+        ]}
+        currentPath=""
+        onSubmit={() => {}}
+      />,
+    );
+    expect(await screen.findByText("2件を移動")).toBeInTheDocument();
+  });
+
+  it("移動対象のフォルダはすべて一覧から除外する（自分の配下へ辿れないようにする）", async () => {
+    vi.spyOn(api, "list").mockResolvedValue({
+      path: "",
+      entries: [
+        { name: "docs", size: 0, mtime: 0, type: "dir" },
+        { name: "self1", size: 0, mtime: 0, type: "dir" },
+        { name: "self2", size: 0, mtime: 0, type: "dir" },
+      ],
+    });
+    renderWithClient(
+      <MoveDialog
+        open
+        onOpenChange={() => {}}
+        entries={[
+          { name: "self1", size: 0, mtime: 0, type: "dir" },
+          { name: "self2", size: 0, mtime: 0, type: "dir" },
+        ]}
+        currentPath=""
+        onSubmit={() => {}}
+      />,
+    );
+    expect(await screen.findByText("docs")).toBeInTheDocument();
+    expect(screen.queryByText("self1")).not.toBeInTheDocument();
+    expect(screen.queryByText("self2")).not.toBeInTheDocument();
   });
 });

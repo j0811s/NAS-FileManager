@@ -11,6 +11,7 @@ function baseProps(overrides: Partial<Parameters<typeof BulkActionToolbar>[0]> =
     onExit: () => {},
     onDelete: () => {},
     onDownload: () => {},
+    onMove: () => {},
     pending: false,
     ...overrides,
   };
@@ -54,6 +55,21 @@ describe("BulkActionToolbar", () => {
     await userEvent.click(screen.getByRole("button", { name: "削除" }));
     expect(onDownload).toHaveBeenCalled();
     expect(onDelete).toHaveBeenCalled();
+  });
+
+  it("移動ボタンで onMove を呼ぶ", async () => {
+    const onMove = vi.fn();
+    render(<BulkActionToolbar {...baseProps({ onMove })} />);
+    await userEvent.click(screen.getByRole("button", { name: "移動" }));
+    expect(onMove).toHaveBeenCalled();
+  });
+
+  it("selectedCount が 0 または pending のとき移動ボタンは disabled", () => {
+    const { unmount } = render(<BulkActionToolbar {...baseProps({ selectedCount: 0 })} />);
+    expect(screen.getByRole("button", { name: "移動" })).toBeDisabled();
+    unmount();
+    render(<BulkActionToolbar {...baseProps({ pending: true })} />);
+    expect(screen.getByRole("button", { name: "移動" })).toBeDisabled();
   });
 
   it("selectedCount が 0 のときダウンロード/削除ボタンは disabled", () => {

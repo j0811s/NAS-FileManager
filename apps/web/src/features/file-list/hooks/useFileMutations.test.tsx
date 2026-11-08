@@ -118,4 +118,89 @@ describe("useFileMutations", () => {
     result.current.bulkDelete.mutate(["docs/a.txt", "docs/b.txt"]);
     await waitFor(() => expect(error).toHaveBeenCalledWith("削除に失敗しました（2件）"));
   });
+  it("bulkMove: 全成功時は成功トーストを出し、移動元・移動先を含む一覧を再取得する", async () => {
+    const moveBulk = vi.spyOn(api, "moveBulk").mockResolvedValue({
+      results: [
+        { path: "docs/a.txt", ok: true },
+        { path: "docs/b.txt", ok: true },
+      ],
+    });
+    const success = vi.spyOn(toast, "success").mockReturnValue("" as never);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useFileMutations("docs"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    result.current.bulkMove.mutate({ paths: ["docs/a.txt", "docs/b.txt"], dest: "archive" });
+    await waitFor(() => expect(success).toHaveBeenCalledWith("2件移動しました"));
+    expect(moveBulk).toHaveBeenCalledWith(["docs/a.txt", "docs/b.txt"], "archive");
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["list"] });
+  });
+
+  it("bulkMove: 一部失敗時は失敗件数を含むエラートーストを出す", async () => {
+    vi.spyOn(api, "moveBulk").mockResolvedValue({
+      results: [
+        { path: "docs/a.txt", ok: true },
+        { path: "docs/b.txt", ok: false, errorCode: "CONFLICT" },
+      ],
+    });
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
+    result.current.bulkMove.mutate({ paths: ["docs/a.txt", "docs/b.txt"], dest: "archive" });
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("1件移動しました（1件失敗: 同名の項目が既に存在します）"),
+    );
+  });
+
+  it("bulkMove: 全失敗時は「移動に失敗しました」のエラートーストを出す", async () => {
+    vi.spyOn(api, "moveBulk").mockResolvedValue({
+      results: [{ path: "docs/a.txt", ok: false, errorCode: "CONFLICT" }],
+    });
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
+    result.current.bulkMove.mutate({ paths: ["docs/a.txt"], dest: "archive" });
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("移動に失敗しました（1件: 同名の項目が既に存在します）"),
+    );
+  });
+
+  it("bulkMove: リクエスト自体の失敗は code に応じたエラートーストを出す", async () => {
+    vi.spyOn(api, "moveBulk").mockRejectedValue(new ApiRequestError("NOT_FOUND", "x"));
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
+    result.current.bulkMove.mutate({ paths: ["docs/a.txt"], dest: "gone" });
+    await waitFor(() => expect(error).toHaveBeenCalledWith("見つかりませんでした"));
+  });
+  it("bulkMove: 失敗理由が複数種類なら件数のみ表示する", async () => {
+    vi.spyOn(api, "moveBulk").mockResolvedValue({
+      results: [
+        { path: "docs/a.txt", ok: false, errorCode: "CONFLICT" },
+        { path: "docs/b", ok: false, errorCode: "INVALID_REQUEST" },
+      ],
+    });
+    const error = vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const { result } = renderHook(() => useFileMutations("docs"), { wrapper });
+    result.current.bulkMove.mutate({ paths: ["docs/a.txt", "docs/b"], dest: "archive" });
+    await waitFor(() => expect(error).toHaveBeenCalledWith("移動に失敗しました（2件）"));
+  });
+
+  it("bulkMove: リクエスト失敗時も一覧系をまとめて再取得する（途中まで移動済みの可能性があるため）", async () => {
+    vi.spyOn(api, "moveBulk").mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.spyOn(toast, "error").mockReturnValue("" as never);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueries = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useFileMutations("docs"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    result.current.bulkMove.mutate({ paths: ["docs/a.txt"], dest: "archive" });
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["list"] }));
+  });
 });

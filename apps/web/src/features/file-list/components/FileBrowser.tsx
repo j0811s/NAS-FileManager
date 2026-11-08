@@ -40,9 +40,10 @@ export function FileBrowser() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(loadViewMode);
   const { data, isLoading, isError, refetch } = useFileList(path);
-  const { mkdir, rename, remove, bulkDelete } = useFileMutations(path);
+  const { mkdir, rename, remove, bulkDelete, bulkMove } = useFileMutations(path);
 
   const sorted = useMemo(
     () => (data ? sortEntries(data.entries, sortKey, sortDir) : []),
@@ -93,6 +94,17 @@ export function FileBrowser() {
     });
     setBulkDeleteOpen(false);
   }
+  function confirmBulkMove(dest: string) {
+    bulkMove.mutate(
+      { paths: [...selectedNames].map(rel), dest },
+      { onSuccess: () => exitSelectMode() },
+    );
+    setBulkMoveOpen(false);
+  }
+  const selectedEntries = useMemo(
+    () => sorted.filter((e) => selectedNames.has(e.name)),
+    [sorted, selectedNames],
+  );
 
   const previewableEntries = useMemo(
     () => sorted.filter((entry) => entry.type !== "dir"),
@@ -136,7 +148,8 @@ export function FileBrowser() {
             onExit={exitSelectMode}
             onDelete={() => setBulkDeleteOpen(true)}
             onDownload={() => api.downloadBulk([...selectedNames].map(rel))}
-            pending={bulkDelete.isPending}
+            onMove={() => setBulkMoveOpen(true)}
+            pending={bulkDelete.isPending || bulkMove.isPending}
           />
         ) : (
           <>
@@ -253,7 +266,7 @@ export function FileBrowser() {
       <MoveDialog
         open={moveTarget !== null}
         onOpenChange={(v) => !v && setMoveTarget(null)}
-        entry={moveTarget}
+        entries={moveTarget ? [moveTarget] : []}
         currentPath={path}
         onSubmit={(destPath) => {
           if (moveTarget) {
@@ -262,6 +275,13 @@ export function FileBrowser() {
           }
           setMoveTarget(null);
         }}
+      />
+      <MoveDialog
+        open={bulkMoveOpen}
+        onOpenChange={setBulkMoveOpen}
+        entries={selectedEntries}
+        currentPath={path}
+        onSubmit={confirmBulkMove}
       />
       <PreviewDialog
         open={previewTarget !== null}

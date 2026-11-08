@@ -88,12 +88,23 @@ export interface BulkPathsRequest {
   paths: string[];
 }
 
-export interface BulkDeleteResult {
+/** 一括操作（削除・移動）の 1 項目ぶんの結果。失敗した項目だけ errorCode を持つ */
+export interface BulkItemResult {
   path: string;
   ok: boolean;
   errorCode?: ApiErrorCode;
 }
 
 export interface BulkDeleteResponse {
-  results: BulkDeleteResult[];
+  results: BulkItemResult[];
+}
+
+/** paths の各項目を dest フォルダ直下へ同じ名前で移動する。dest は "" でルート直下 */
+export interface BulkMoveRequest {
+  paths: string[];
+  dest: string;
+}
+
+export interface BulkMoveResponse {
+  results: BulkItemResult[];
 }

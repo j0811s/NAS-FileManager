@@ -1,4 +1,4 @@
-import { Download, Trash2, X } from "lucide-react";
+import { Download, FolderInput, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -9,6 +9,7 @@ export function BulkActionToolbar({
   onExit,
   onDelete,
   onDownload,
+  onMove,
   pending,
 }: {
   selectedCount: number;
@@ -17,6 +18,7 @@ export function BulkActionToolbar({
   onExit: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onMove: () => void;
   pending: boolean;
 }) {
   const disabled = pending || selectedCount === 0;
@@ -38,6 +40,10 @@ export function BulkActionToolbar({
         <Button variant="outline" size="sm" onClick={onDownload} disabled={disabled}>
           <Download size={16} className="mr-2" />
           ダウンロード
+        </Button>
+        <Button variant="outline" size="sm" onClick={onMove} disabled={disabled}>
+          <FolderInput size={16} className="mr-2" />
+          移動
         </Button>
         <Button variant="destructive" size="sm" onClick={onDelete} disabled={disabled}>
           <Trash2 size={16} className="mr-2" />

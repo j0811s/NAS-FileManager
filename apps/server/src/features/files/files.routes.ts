@@ -4,7 +4,8 @@ import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import { Hono } from "hono";
 import type {
   BulkDeleteResponse,
-  BulkDeleteResult,
+  BulkItemResult,
+  BulkMoveResponse,
   ListResponse,
   OkResponse,
 } from "@nas-fm/shared";
@@ -18,6 +19,7 @@ import {
   createSelectionZipStream,
   listDir,
   makeDir,
+  moveEntries,
   renamePath,
   resolveDownloadEntry,
   statForDownload,
@@ -25,6 +27,7 @@ import {
 } from "./files.service";
 import {
   optionalPath,
+  parseBulkMoveBody,
   parseBulkPathsBody,
   parseBulkPathsForm,
   parseMkdirBody,
@@ -154,7 +157,7 @@ export function createFilesRoutes(root: string): Hono {
 
   app.post("/delete-bulk", async (c) => {
     const { paths } = parseBulkPathsBody(await readJsonBody(() => c.req.json()));
-    const results: BulkDeleteResult[] = [];
+    const results: BulkItemResult[] = [];
     for (const p of paths) {
       try {
         await moveToTrash(root, p);
@@ -168,6 +171,12 @@ export function createFilesRoutes(root: string): Hono {
       }
     }
     const res: BulkDeleteResponse = { results };
+    return c.json(res);
+  });
+
+  app.post("/move-bulk", async (c) => {
+    const { paths, dest } = parseBulkMoveBody(await readJsonBody(() => c.req.json()));
+    const res: BulkMoveResponse = { results: await moveEntries(root, paths, dest) };
     return c.json(res);
   });
 

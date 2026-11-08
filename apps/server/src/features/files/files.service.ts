@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ZipArchive, type Archiver } from "archiver";
-import type { FileEntry } from "@nas-fm/shared";
+import type { BulkItemResult, FileEntry } from "@nas-fm/shared";
 import { AppError, fromFsError } from "../../lib/errors";
 import { safeResolve } from "../../lib/safe-resolve";
 import { TRASH_DIR_NAME } from "../trash/trash.service";
@@ -68,6 +68,40 @@ export async function renamePath(root: string, from: string, to: string): Promis
   } catch (err) {
     throw fromFsError(err, to);
   }
+}
+
+/**
+ * paths の各項目を dest フォルダ直下へ同じ名前で移動する。項目ごとに成否を返し、1 件の失敗で全体を止めない。
+ * dest 自体が不正（トラバーサル・存在しない・フォルダでない）な場合だけはリクエスト全体を失敗させる。
+ */
+export async function moveEntries(
+  root: string,
+  paths: string[],
+  dest: string,
+): Promise<BulkItemResult[]> {
+  const absDest = safeResolve(root, dest);
+  const destStat = await fs.stat(absDest).catch((err: unknown) => {
+    throw fromFsError(err, dest);
+  });
+  if (!destStat.isDirectory()) {
+    throw new AppError("NOT_A_DIRECTORY", `not a directory: ${dest}`);
+  }
+
+  const results: BulkItemResult[] = [];
+  for (const p of paths) {
+    try {
+      const name = path.posix.basename(p);
+      await renamePath(root, p, dest ? `${dest}/${name}` : name);
+      results.push({ path: p, ok: true });
+    } catch (err) {
+      const errorCode = err instanceof AppError ? err.code : "INTERNAL";
+      // fromFsError は想定外の errno（EXDEV/EACCES 等）も AppError("INTERNAL") に包むため、code で判定して記録する
+      // （単体操作で app.ts の onError が INTERNAL を記録するのと同じ方針）
+      if (errorCode === "INTERNAL") console.error(err);
+      results.push({ path: p, ok: false, errorCode });
+    }
+  }
+  return results;
 }
 
 export async function uploadFile(

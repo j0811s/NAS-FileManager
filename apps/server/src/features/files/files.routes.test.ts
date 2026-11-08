@@ -6,7 +6,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdmZip from "adm-zip";
-import type { ApiError, ListResponse } from "@nas-fm/shared";
+import type { ApiError, BulkMoveResponse, ListResponse } from "@nas-fm/shared";
 import { createApp } from "../../app";
 import type { AuthConfig } from "../../lib/auth-config";
 import { hashPassword } from "../../lib/password";
@@ -337,6 +337,115 @@ describe("POST /api/delete-bulk", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as ApiError;
     expect(body.error.code).toBe("INVALID_REQUEST");
+  });
+});
+
+describe("POST /api/move-bulk", () => {
+  function moveBulk(app: ReturnType<typeof createApp>, body: unknown) {
+    return app.request(
+      "/api/move-bulk",
+      withAuth({ method: "POST", headers: jsonHeaders, body: JSON.stringify(body) }),
+    );
+  }
+
+  async function names(app: ReturnType<typeof createApp>, dir: string): Promise<string[]> {
+    const res = await app.request(`/api/list?path=${encodeURIComponent(dir)}`, withAuth());
+    return ((await res.json()) as ListResponse).entries.map((e) => e.name).sort();
+  }
+
+  it("複数のファイル・フォルダを移動先フォルダへ移動する", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await mkdir(path.join(root, "photos"));
+    await mkdir(path.join(root, "dest"));
+    const app = createApp(root, authConfig);
+    const res = await moveBulk(app, { paths: ["a.txt", "photos"], dest: "dest" });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as BulkMoveResponse).results).toEqual([
+      { path: "a.txt", ok: true },
+      { path: "photos", ok: true },
+    ]);
+    expect(await names(app, "dest")).toEqual(["a.txt", "photos"]);
+    expect(await names(app, "")).toEqual(["dest"]);
+  });
+
+  it('サブフォルダ内の項目をルート直下（dest: ""）へ移動できる', async () => {
+    await mkdir(path.join(root, "sub"));
+    await writeFile(path.join(root, "sub", "a.txt"), "a");
+    const app = createApp(root, authConfig);
+    const res = await moveBulk(app, { paths: ["sub/a.txt"], dest: "" });
+    expect(((await res.json()) as BulkMoveResponse).results).toEqual([{ path: "sub/a.txt", ok: true }]);
+    expect(await names(app, "")).toEqual(["a.txt", "sub"]);
+  });
+
+  it("同名が既にある項目だけ CONFLICT で失敗し、他は移動される", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await writeFile(path.join(root, "b.txt"), "b");
+    await mkdir(path.join(root, "dest"));
+    await writeFile(path.join(root, "dest", "a.txt"), "existing");
+    const app = createApp(root, authConfig);
+    const res = await moveBulk(app, { paths: ["a.txt", "b.txt"], dest: "dest" });
+    expect(((await res.json()) as BulkMoveResponse).results).toEqual([
+      { path: "a.txt", ok: false, errorCode: "CONFLICT" },
+      { path: "b.txt", ok: true },
+    ]);
+    expect(await readFile(path.join(root, "dest", "a.txt"), "utf8")).toBe("existing");
+  });
+
+  it("フォルダを自分自身の配下へ移動する項目は INVALID_REQUEST で失敗する", async () => {
+    await mkdir(path.join(root, "dir", "child"), { recursive: true });
+    const app = createApp(root, authConfig);
+    const res = await moveBulk(app, { paths: ["dir"], dest: "dir/child" });
+    expect(((await res.json()) as BulkMoveResponse).results).toEqual([
+      { path: "dir", ok: false, errorCode: "INVALID_REQUEST" },
+    ]);
+  });
+
+  it("移動元のパストラバーサルはその項目だけ PATH_TRAVERSAL で失敗する", async () => {
+    await mkdir(path.join(root, "dest"));
+    const app = createApp(root, authConfig);
+    const res = await moveBulk(app, { paths: ["../outside.txt"], dest: "dest" });
+    expect(((await res.json()) as BulkMoveResponse).results).toEqual([
+      { path: "../outside.txt", ok: false, errorCode: "PATH_TRAVERSAL" },
+    ]);
+  });
+
+  it("移動先のパストラバーサルはリクエスト全体を 400 PATH_TRAVERSAL にする", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    const app = createApp(root, authConfig);
+    const res = await moveBulk(app, { paths: ["a.txt"], dest: "../outside" });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as ApiError).error.code).toBe("PATH_TRAVERSAL");
+    expect(await names(app, "")).toEqual(["a.txt"]);
+  });
+
+  it("移動先がフォルダでなければ 400 NOT_A_DIRECTORY、存在しなければ 404", async () => {
+    await writeFile(path.join(root, "a.txt"), "a");
+    await writeFile(path.join(root, "file.txt"), "f");
+    const app = createApp(root, authConfig);
+    const notDir = await moveBulk(app, { paths: ["a.txt"], dest: "file.txt" });
+    expect(notDir.status).toBe(400);
+    expect(((await notDir.json()) as ApiError).error.code).toBe("NOT_A_DIRECTORY");
+    const missing = await moveBulk(app, { paths: ["a.txt"], dest: "missing" });
+    expect(missing.status).toBe(404);
+  });
+
+  it("paths が空・dest が無い body は 400 INVALID_REQUEST", async () => {
+    const app = createApp(root, authConfig);
+    for (const body of [{ paths: [], dest: "" }, { paths: ["a.txt"] }, { paths: ["a"], dest: 1 }]) {
+      const res = await moveBulk(app, body);
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as ApiError).error.code).toBe("INVALID_REQUEST");
+    }
+  });
+
+  it("認証が無ければ 401", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request("/api/move-bulk", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({ paths: ["a.txt"], dest: "" }),
+    });
+    expect(res.status).toBe(401);
   });
 });
 
