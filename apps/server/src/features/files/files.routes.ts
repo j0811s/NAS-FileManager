@@ -62,6 +62,7 @@ export function createFilesRoutes(root: string): Hono {
   app.post("/upload", async (c) => {
     const rel = requirePath(c.req.query("path"));
     const overwrite = c.req.query("overwrite") === "true";
+    const createParents = c.req.query("createParents") === "true";
     const body = c.req.raw.body;
     if (!body) {
       throw new AppError("INVALID_REQUEST", "request body is required");
@@ -71,6 +72,7 @@ export function createFilesRoutes(root: string): Hono {
       rel,
       Readable.fromWeb(body as unknown as NodeWebReadableStream),
       overwrite,
+      { createParents },
     );
     const res: OkResponse = { ok: true };
     return c.json(res, 201);

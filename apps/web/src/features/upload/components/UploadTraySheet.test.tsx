@@ -15,6 +15,7 @@ function makeItem(overrides: Partial<UploadItem>): UploadItem {
     path: "docs",
     status: "pending",
     progress: 0,
+    createParents: false,
     ...overrides,
   };
 }

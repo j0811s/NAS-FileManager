@@ -109,6 +109,7 @@ export async function uploadFile(
   relPath: string,
   body: Readable,
   overwrite: boolean,
+  opts: { createParents?: boolean } = {},
 ): Promise<void> {
   const abs = safeResolve(root, relPath);
   if (abs === root) {
@@ -120,6 +121,19 @@ export async function uploadFile(
   }
   if (existing && !overwrite) {
     throw new AppError("CONFLICT", `already exists: ${relPath}`);
+  }
+  // 衝突などで失敗するアップロードのために空フォルダを残さないよう、既存チェックの後に作る
+  if (opts.createParents) {
+    // フォルダアップロード用。並行アップロードで同じ親を同時に作っても recursive なら競合しない。
+    // abs は safeResolve 済みなので、その親も root 配下に収まる
+    await fs.mkdir(path.dirname(abs), { recursive: true }).catch((err: unknown) => {
+      const code = (err as NodeJS.ErrnoException).code;
+      // 途中の階層が通常ファイル（Linux は ENOTDIR、macOS は EEXIST）
+      if (code === "ENOTDIR" || code === "EEXIST") {
+        throw new AppError("NOT_A_DIRECTORY", `not a directory in path: ${relPath}`);
+      }
+      throw fromFsError(err, relPath);
+    });
   }
   const parent = path.dirname(abs);
   const parentSt = await fs.stat(parent).catch(() => null);

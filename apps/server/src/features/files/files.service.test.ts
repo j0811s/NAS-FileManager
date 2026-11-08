@@ -197,6 +197,39 @@ describe("uploadFile", () => {
     await expectAppError(uploadFile(root, "no/up.txt", Readable.from("x"), false), "NOT_FOUND");
   });
 
+  it("createParents=true なら無い親ディレクトリを再帰的に作って書き込む", async () => {
+    await uploadFile(root, "a/b/c/up.txt", Readable.from("deep"), false, { createParents: true });
+    expect(await readFile(path.join(root, "a", "b", "c", "up.txt"), "utf8")).toBe("deep");
+  });
+
+  it("createParents=true で親が既に存在していてもエラーにしない", async () => {
+    await mkdir(path.join(root, "a"));
+    await uploadFile(root, "a/up.txt", Readable.from("x"), false, { createParents: true });
+    expect(await readFile(path.join(root, "a", "up.txt"), "utf8")).toBe("x");
+  });
+
+  it("createParents=true でも途中の階層がファイルなら NOT_A_DIRECTORY", async () => {
+    await writeFile(path.join(root, "a"), "file");
+    await expectAppError(
+      uploadFile(root, "a/b/up.txt", Readable.from("x"), false, { createParents: true }),
+      "NOT_A_DIRECTORY",
+    );
+  });
+
+  it("createParents=true でも既存ファイルとの衝突（CONFLICT）ならフォルダを作らない", async () => {
+    await mkdir(path.join(root, "a"));
+    await writeFile(path.join(root, "a", "up.txt"), "old");
+    await expectAppError(uploadFile(root, "a/up.txt", Readable.from("x"), false, { createParents: true }), "CONFLICT");
+    expect(await readdir(path.join(root, "a"))).toEqual(["up.txt"]);
+  });
+
+  it("createParents=true でもパストラバーサルは PATH_TRAVERSAL（ルート外にディレクトリを作らない）", async () => {
+    await expectAppError(
+      uploadFile(root, "../escape/up.txt", Readable.from("x"), false, { createParents: true }),
+      "PATH_TRAVERSAL",
+    );
+  });
+
   it("ストリーム途中失敗時は書きかけファイルを残さない", async () => {
     const failing = new Readable({
       read() {

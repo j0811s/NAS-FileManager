@@ -101,6 +101,25 @@ describe("POST /api/upload", () => {
     expect(await readFile(path.join(root, "up.txt"), "utf8")).toBe("hello");
   });
 
+  it("createParents=true で無い親ディレクトリを作って書き込む", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      `/api/upload?path=${encodeURIComponent("photos/2026/up.txt")}&createParents=true`,
+      withAuth({ method: "POST", body: "hello" }),
+    );
+    expect(res.status).toBe(201);
+    expect(await readFile(path.join(root, "photos", "2026", "up.txt"), "utf8")).toBe("hello");
+  });
+
+  it("createParents 無しで親ディレクトリが無ければ 404（従来どおり）", async () => {
+    const app = createApp(root, authConfig);
+    const res = await app.request(
+      `/api/upload?path=${encodeURIComponent("photos/up.txt")}`,
+      withAuth({ method: "POST", body: "hello" }),
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("既存ファイルは 409", async () => {
     await writeFile(path.join(root, "up.txt"), "old");
     const app = createApp(root, authConfig);

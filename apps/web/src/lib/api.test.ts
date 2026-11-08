@@ -136,3 +136,40 @@ describe("api.downloadBulk", () => {
     createElementSpy.mockRestore();
   });
 });
+
+describe("api.upload", () => {
+  function stubXhr() {
+    const opened: string[] = [];
+    class FakeXhr {
+      status = 201;
+      responseText = "";
+      upload = { addEventListener: () => {} };
+      private listeners: Record<string, () => void> = {};
+      open(_method: string, url: string) {
+        opened.push(url);
+      }
+      addEventListener(type: string, cb: () => void) {
+        this.listeners[type] = cb;
+      }
+      send() {
+        queueMicrotask(() => this.listeners.load?.());
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    return opened;
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("通常はフォルダ/ファイル名の path だけを付けて POST する", async () => {
+    const opened = stubXhr();
+    await api.upload("docs", new File(["x"], "a.txt"));
+    expect(opened).toEqual([`/api/upload?path=${encodeURIComponent("docs/a.txt")}`]);
+  });
+
+  it("createParents 指定時は createParents=true を付ける", async () => {
+    const opened = stubXhr();
+    await api.upload("docs/photos/2026", new File(["x"], "a.jpg"), { createParents: true });
+    expect(opened).toEqual([`/api/upload?path=${encodeURIComponent("docs/photos/2026/a.jpg")}&createParents=true`]);
+  });
+});

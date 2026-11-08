@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { ApiRequestError, api } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
+import type { CollectedFile } from "../collect-files";
 
 export type UploadItemStatus = "pending" | "uploading" | "done" | "error";
 
@@ -11,6 +12,8 @@ export type UploadItem = {
   status: UploadItemStatus;
   progress: number;
   errorCode?: string;
+  /** フォルダアップロードで保存先フォルダを新規作成しうる項目 */
+  createParents: boolean;
 };
 
 const MAX_CONCURRENT = 3;
@@ -62,10 +65,14 @@ async function runOne(item: UploadItem) {
   try {
     await api.upload(item.path, item.file, {
       onProgress: (progress) => updateItem(item.id, { progress }),
+      createParents: item.createParents,
     });
     updateItem(item.id, { status: "done", progress: 100 });
     settledSinceToast = { ...settledSinceToast, done: settledSinceToast.done + 1 };
-    queryClient.invalidateQueries({ queryKey: ["list", item.path] });
+    // 新規フォルダができた場合は親フォルダの一覧にも反映させる必要があるため、一覧系をまとめて再取得する
+    queryClient.invalidateQueries({
+      queryKey: item.createParents ? ["list"] : ["list", item.path],
+    });
     queryClient.invalidateQueries({ queryKey: ["disk-usage"] });
   } catch (err) {
     const code = err instanceof ApiRequestError ? err.code : "INTERNAL";
@@ -93,12 +100,20 @@ export const uploadQueueStore = {
     return items;
   },
   enqueue(path: string, files: File[]): void {
-    const newItems: UploadItem[] = files.map((file) => ({
+    uploadQueueStore.enqueueCollected(
+      path,
+      files.map((file) => ({ file, relDir: "" })),
+    );
+  },
+  /** フォルダ構造付きで積む。保存先は basePath 配下の relDir で、relDir がある項目はサーバにフォルダを作らせる */
+  enqueueCollected(basePath: string, collected: CollectedFile[]): void {
+    const newItems: UploadItem[] = collected.map(({ file, relDir }) => ({
       id: String(nextId++),
       file,
-      path,
+      path: [basePath, relDir].filter((p) => p !== "").join("/"),
       status: "pending",
       progress: 0,
+      createParents: relDir !== "",
     }));
     items = [...items, ...newItems];
     emit();

@@ -162,10 +162,11 @@ export const api = {
   upload(
     dirPath: string,
     file: File,
-    opts: { onProgress?: (pct: number) => void } = {},
+    opts: { onProgress?: (pct: number) => void; createParents?: boolean } = {},
   ): Promise<void> {
     const rel = dirPath ? `${dirPath}/${file.name}` : file.name;
-    const url = `/api/upload?path=${encodeURIComponent(rel)}`;
+    // createParents: フォルダアップロードで、保存先のフォルダが無ければサーバ側で作らせる
+    const url = `/api/upload?path=${encodeURIComponent(rel)}${opts.createParents ? "&createParents=true" : ""}`;
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);

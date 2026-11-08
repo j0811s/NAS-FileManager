@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { queryClient } from "@/lib/query-client";
 import { __resetForTests, uploadQueueStore } from "./uploadQueueStore";
 
 function deferred<T>() {
@@ -195,5 +196,33 @@ describe("uploadQueueStore の beforeunload 連携", () => {
     const preventDefault = vi.spyOn(event, "preventDefault");
     window.dispatchEvent(event);
     expect(preventDefault).not.toHaveBeenCalled();
+  });
+  it("enqueueCollected はフォルダ構造を保った保存先で積み、サブフォルダ分だけ createParents を付ける", async () => {
+    const upload = vi.spyOn(api, "upload").mockResolvedValue();
+    uploadQueueStore.enqueueCollected("docs", [
+      { file: new File(["x"], "top.txt"), relDir: "" },
+      { file: new File(["x"], "1.jpg"), relDir: "photos/2026" },
+    ]);
+    expect(uploadQueueStore.getSnapshot().map((it) => it.path)).toEqual(["docs", "docs/photos/2026"]);
+    await vi.waitFor(() => expect(upload).toHaveBeenCalledTimes(2));
+    expect(upload).toHaveBeenCalledWith("docs", expect.any(File), expect.objectContaining({ createParents: false }));
+    expect(upload).toHaveBeenCalledWith(
+      "docs/photos/2026",
+      expect.any(File),
+      expect.objectContaining({ createParents: true }),
+    );
+  });
+
+  it('enqueueCollected はルート直下（basePath=""）でも先頭にスラッシュを付けない', () => {
+    vi.spyOn(api, "upload").mockReturnValue(new Promise(() => {}));
+    uploadQueueStore.enqueueCollected("", [{ file: new File(["x"], "1.jpg"), relDir: "photos" }]);
+    expect(uploadQueueStore.getSnapshot()[0]?.path).toBe("photos");
+  });
+
+  it("新しいフォルダを作るアップロードの完了時は、親フォルダにも反映されるよう一覧系をまとめて再取得する", async () => {
+    vi.spyOn(api, "upload").mockResolvedValue();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    uploadQueueStore.enqueueCollected("docs", [{ file: new File(["x"], "1.jpg"), relDir: "photos" }]);
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["list"] }));
   });
 });
