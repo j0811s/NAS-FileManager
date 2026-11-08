@@ -14,6 +14,7 @@ const MESSAGES: Record<DisplayErrorCode, string> = {
   NOT_FOUND: "見つかりませんでした",
   CONFLICT: "同名の項目が既に存在します",
   UNAUTHORIZED: "認証が必要です",
+  TOO_MANY_REQUESTS: "試行回数が多すぎます。しばらく待ってから再試行してください",
   UNSUPPORTED: "サポートされていない操作です",
   INTERNAL: "サーバでエラーが発生しました",
   NETWORK_ERROR: "ネットワークに接続できませんでした",

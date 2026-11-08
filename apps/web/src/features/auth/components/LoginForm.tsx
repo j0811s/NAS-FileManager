@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/lib/api";
+import { ApiRequestError, api } from "@/lib/api";
+import { errorMessage } from "@/lib/error-messages";
 
 export function LoginForm() {
   const qc = useQueryClient();
@@ -13,7 +14,16 @@ export function LoginForm() {
   const login = useMutation({
     mutationFn: (pw: string) => api.login(pw),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["me"] }),
-    onError: () => toast.error("パスワードが違います"),
+    // サーバ不調をパスワード違いと誤認させると、打ち直しで試行回数制限に掛かるため区別して表示する
+    onError: (err) => {
+      if (!(err instanceof ApiRequestError)) {
+        toast.error(errorMessage("NETWORK_ERROR"));
+      } else if (err.code === "UNAUTHORIZED") {
+        toast.error("パスワードが違います");
+      } else {
+        toast.error(errorMessage(err.code));
+      }
+    },
   });
 
   return (

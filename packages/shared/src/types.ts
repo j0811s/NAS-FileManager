@@ -21,6 +21,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "UNAUTHORIZED"
+  | "TOO_MANY_REQUESTS"
   | "UNSUPPORTED"
   | "INTERNAL";
 
