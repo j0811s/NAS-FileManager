@@ -51,6 +51,10 @@ export async function renamePath(root: string, from: string, to: string): Promis
   if (absFrom === root || absTo === root) {
     throw new AppError("INVALID_REQUEST", "cannot rename the root directory");
   }
+  // 自分自身の配下への移動は fs.rename が EINVAL で失敗し INTERNAL に化けるため、先に弾く
+  if (absTo.startsWith(absFrom + path.sep)) {
+    throw new AppError("INVALID_REQUEST", "cannot move a directory into itself");
+  }
   const src = await fs.lstat(absFrom).catch(() => null);
   if (!src) {
     throw new AppError("NOT_FOUND", `not found: ${from}`);

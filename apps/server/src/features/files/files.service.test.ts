@@ -123,6 +123,19 @@ describe("renamePath", () => {
     await writeFile(path.join(root, "b.txt"), "y");
     await expectAppError(renamePath(root, "a.txt", "b.txt"), "CONFLICT");
   });
+
+  it("フォルダを自分自身の配下へ移動しようとすると INVALID_REQUEST", async () => {
+    await mkdir(path.join(root, "dir", "child"), { recursive: true });
+    await expectAppError(renamePath(root, "dir", "dir/child/dir"), "INVALID_REQUEST");
+    await expectAppError(renamePath(root, "dir", "dir/dir"), "INVALID_REQUEST");
+  });
+
+  it("名前の前方一致だけの兄弟フォルダ（dir → dir2/dir）へは移動できる", async () => {
+    await mkdir(path.join(root, "dir"));
+    await mkdir(path.join(root, "dir2"));
+    await renamePath(root, "dir", "dir2/dir");
+    expect(await readdir(path.join(root, "dir2"))).toEqual(["dir"]);
+  });
 });
 
 describe("uploadFile", () => {
