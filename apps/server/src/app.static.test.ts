@@ -46,6 +46,23 @@ describe("静的配信（staticDir 指定時）", () => {
     expect(res.status).toBe(200);
   });
 
+  // ルーティングが見るパス（%25 は未デコード）と異なるファイルを serveStatic が再デコードして返さないこと。
+  // @hono/node-server <2.1.3 / hono >=4.12.4 <4.13.11 では /a%2520b.txt で a%20b.txt を返していた（ミドルウェアをすり抜ける原因）。
+  it("ルーティング後のパスを再デコードして別のファイルを返さない（%2520 → 404）", async () => {
+    await writeFile(path.join(staticDir, "a%20b.txt"), "re-decoded");
+    const app = createApp(root, authConfig, staticDir);
+    const res = await app.request("/a%2520b.txt");
+    expect(res.status).toBe(404);
+  });
+
+  it("正規の 1 回エンコードは従来どおり配信する（/a%20b.txt → a b.txt）", async () => {
+    await writeFile(path.join(staticDir, "a b.txt"), "space-name");
+    const app = createApp(root, authConfig, staticDir);
+    const res = await app.request("/a%20b.txt");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("space-name");
+  });
+
   it("static マウント後も /api/list は認証ガードのまま（Cookie 無しで 401）", async () => {
     const app = createApp(root, authConfig, staticDir);
     const res = await app.request("/api/list?path=");
